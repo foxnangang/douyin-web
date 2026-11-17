@@ -64,6 +64,7 @@ button.sm{padding:7px 13px;font-size:12.5px;border-radius:8px}
 .platforms{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
 .pf{font-size:11.5px;color:var(--ink3);border:1px solid var(--line);border-radius:6px;padding:2px 8px;background:#fafbf9}
 .pf.hot{color:var(--brand);border-color:var(--brand-line);background:var(--brand-l)}
+.pf.more{color:var(--brand);border-style:dashed;border-color:var(--brand-line);background:transparent}
 
 /* ---------- 提示条 ---------- */
 .msg{display:none;margin-top:12px;padding:10px 13px;border-radius:10px;font-size:13px}
@@ -178,10 +179,9 @@ footer a:hover{text-decoration:underline}
       <div class="platforms">
         <span class="pf hot">抖音</span><span class="pf hot">快手</span><span class="pf hot">小红书</span>
         <span class="pf hot">B站</span><span class="pf">微博</span><span class="pf">西瓜视频</span>
-        <span class="pf">微视</span><span class="pf">皮皮虾</span><span class="pf">最右</span>
-        <span class="pf">好看视频</span><span class="pf">虎牙</span><span class="pf">AcFun</span>
-        <span class="pf">腾讯视频</span><span class="pf">搜狐</span><span class="pf">央视网</span>
-        <span class="pf">美拍</span><span class="pf">新片场</span><span class="pf">梨视频</span>
+        <span class="pf">微视</span><span class="pf">皮皮虾</span><span class="pf">好看视频</span>
+        <span class="pf">虎牙</span><span class="pf">AcFun</span><span class="pf">腾讯视频</span>
+        <span class="pf more">等 20+ 平台</span>
       </div>
       <div class="msg" id="quickMsg"></div>
     </div>
@@ -405,8 +405,10 @@ function renderResults(data) {
   const images = works.filter(w => w.kind === 'image');
 
   $('resTitle').textContent = p.nickname || '解析结果';
-  $('resMeta').textContent = (data.platformLabel ? '· ' + data.platformLabel + ' ' : '')
-    + '· 共 ' + (data.count || works.length) + ' 个文件';
+  $('resMeta').textContent = [
+    data.platformLabel || '',
+    '共 ' + (data.count || works.length) + ' 个文件'
+  ].filter(Boolean).join(' · ');
 
   const zipBtn = $('btnZip');
   if (images.length >= 2) {
