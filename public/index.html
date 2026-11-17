@@ -57,6 +57,12 @@ input[type=text],input[type=password],textarea,select{
 input[type=text]:focus,input[type=password]:focus,textarea:focus,select:focus{border-color:var(--brand);background:#fff;box-shadow:0 0 0 3px rgba(47,107,91,.08)}
 textarea{resize:vertical;min-height:88px;line-height:1.7}
 .field input[type=text]{flex:1;min-width:200px}
+.link-field{position:relative;flex:1;min-width:200px;display:flex}
+.link-field input{padding-right:112px;width:100%}
+.link-acts{position:absolute;right:6px;top:50%;transform:translateY(-50%);display:flex;gap:2px}
+.mini{background:transparent;color:var(--ink3);border:none;box-shadow:none;font-size:12px;
+  padding:4px 8px;border-radius:6px;font-weight:400}
+.mini:hover{background:var(--brand-l);color:var(--brand-d);box-shadow:none}
 button{font-family:inherit;font-size:14px;cursor:pointer;border:none;border-radius:10px;padding:11px 20px;
   background:var(--brand);color:#fff;transition:.16s;white-space:nowrap;font-weight:500}
 button:hover{background:var(--brand-d);box-shadow:0 6px 16px rgba(47,107,91,.2)}
@@ -218,7 +224,14 @@ footer a:hover{text-decoration:underline}
       <div class="card-h"><h2>粘贴分享链接</h2><span class="badge">免 Cookie</span></div>
       <p class="hint">抖音 / 快手 / 小红书 / B站 等 20+ 平台，一个框通用。粘贴后点解析即可拿到无水印原片。</p>
       <div class="field">
-        <input type="text" id="urlQuick" placeholder="把分享链接粘到这里，比如 https://v.douyin.com/xxxxx/">
+        <div class="link-field">
+          <input type="text" id="urlQuick" name="dy_link" autocomplete="off" spellcheck="false"
+                 placeholder="把分享链接粘到这里，比如 https://v.douyin.com/xxxxx/">
+          <div class="link-acts">
+            <button class="mini" data-paste="urlQuick" type="button">粘贴</button>
+            <button class="mini" data-clear="urlQuick" type="button">清空</button>
+          </div>
+        </div>
         <button id="btnQuick">解析</button>
       </div>
       <div class="platforms">
@@ -238,7 +251,14 @@ footer a:hover{text-decoration:underline}
       <div class="card-h"><h2>主页 / 点赞批量解析</h2><span class="badge">需 Cookie</span></div>
       <p class="hint">贴用户主页链接，一次抓取他的公开作品；也可以抓自己点赞过的作品。</p>
       <div class="field">
-        <input type="text" id="urlBatch" placeholder="https://www.douyin.com/user/MS4wLjABAAAA...">
+        <div class="link-field">
+          <input type="text" id="urlBatch" name="dy_link_batch" autocomplete="off" spellcheck="false"
+                 placeholder="https://www.douyin.com/user/MS4wLjABAAAA...">
+          <div class="link-acts">
+            <button class="mini" data-paste="urlBatch" type="button">粘贴</button>
+            <button class="mini" data-clear="urlBatch" type="button">清空</button>
+          </div>
+        </div>
         <select id="batchMode" style="flex:0 0 118px">
           <option value="post">主页作品</option>
           <option value="favorite">点赞作品</option>
@@ -273,7 +293,14 @@ footer a:hover{text-decoration:underline}
       <div class="card-h"><h2>提取视频文案</h2><span class="badge">语音转文字</span></div>
       <p class="hint">贴分享链接，自动抽音轨转成文字。单次最多 5 分钟；口音重或背景音乐吵时会有同音字，可以点「AI 校对」修一遍。</p>
       <div class="field">
-        <input type="text" id="urlAsr" placeholder="粘贴视频分享链接，比如 https://v.douyin.com/xxxxx/">
+        <div class="link-field">
+          <input type="text" id="urlAsr" name="dy_link_asr" autocomplete="off" spellcheck="false"
+                 placeholder="粘贴视频分享链接，比如 https://v.douyin.com/xxxxx/">
+          <div class="link-acts">
+            <button class="mini" data-paste="urlAsr" type="button">粘贴</button>
+            <button class="mini" data-clear="urlAsr" type="button">清空</button>
+          </div>
+        </div>
         <button id="btnAsr">提取文案</button>
       </div>
       <div class="msg" id="asrMsg"></div>
@@ -406,22 +433,22 @@ footer a:hover{text-decoration:underline}
     </div>
 
     <div id="pane-login">
-      <input type="text" id="loginEmail" placeholder="邮箱">
-      <input type="password" id="loginPass" placeholder="密码">
+      <input type="text" id="loginEmail" name="email" autocomplete="username" placeholder="邮箱">
+      <input type="password" id="loginPass" name="password" autocomplete="current-password" placeholder="密码">
       <button class="submit" id="btnLogin">登录</button>
       <p class="mhint">还没有账号？点上面的「注册」，需要邀请码。</p>
     </div>
 
     <div id="pane-register" style="display:none">
-      <input type="text" id="regEmail" placeholder="邮箱">
-      <input type="password" id="regPass" placeholder="密码（至少 6 位）">
-      <input type="text" id="regCode" placeholder="邀请码，形如 DY-XXXX-XXXX-XXXX">
+      <input type="text" id="regEmail" name="reg_email" autocomplete="off" placeholder="邮箱">
+      <input type="password" id="regPass" name="reg_pass" autocomplete="new-password" placeholder="密码（至少 6 位）">
+      <input type="text" id="regCode" name="reg_code" autocomplete="off" placeholder="邀请码，形如 DY-XXXX-XXXX-XXXX">
       <button class="submit" id="btnReg">注册并登录</button>
       <p class="mhint">没有邀请码？<a href="https://www.foxnan.com/invite-shop" target="_blank" rel="noopener">在这里买一个</a>（100 次 / ¥19）</p>
     </div>
 
     <div id="pane-recharge" style="display:none">
-      <input type="text" id="rcCode" placeholder="邀请码">
+      <input type="text" id="rcCode" name="rc_code" autocomplete="off" placeholder="邀请码">
       <button class="submit" id="btnRedeem">充值</button>
       <p class="mhint">充完额度会叠加到当前账号，按次扣：解析 1 次、批量 5 次、转写 3 次、AI 1 次。</p>
     </div>
@@ -430,7 +457,7 @@ footer a:hover{text-decoration:underline}
       <div style="font-size:12.5px;color:var(--ink3);margin-bottom:10px">
         邮箱：<span id="profEmail">-</span>
       </div>
-      <input type="text" id="nickInput" placeholder="昵称（1~16 字）" maxlength="16">
+      <input type="text" id="nickInput" name="nickname" autocomplete="off" placeholder="昵称（1~16 字）" maxlength="16">
       <button class="submit" id="btnNick">保存昵称</button>
       <p class="mhint">昵称只显示在你自己和后台，不影响登录。</p>
     </div>
@@ -900,6 +927,49 @@ $('btnDigest').onclick = async e => {
     showMsg('digestMsg', '请求失败：' + err.message, 'err');
   } finally { setLoading(btn, false, '生成摘要'); }
 };
+
+/* ---------- 防浏览器自动填充 ----------
+   页面里有密码框，Chrome 会把保存的账号塞进页面第一个文本框（就是分享链接框）。
+   autocomplete=off 它有时不听，这里再兜一层：看起来像邮箱又没有 http 的，直接清掉。 */
+function scrubAutofill(el) {
+  const v = (el.value || '').trim();
+  if (v && v.indexOf('http') !== 0 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) {
+    el.value = '';
+    return true;
+  }
+  return false;
+}
+['urlQuick', 'urlAsr', 'urlBatch'].forEach(id => {
+  const el = $(id);
+  if (!el) return;
+  setTimeout(() => scrubAutofill(el), 300);
+  el.addEventListener('focus', () => scrubAutofill(el));
+});
+
+/* ---------- 输入框的粘贴 / 清空 ---------- */
+document.querySelectorAll('button[data-paste]').forEach(b => {
+  b.onclick = async () => {
+    const el = $(b.dataset.paste);
+    try {
+      const t = (await navigator.clipboard.readText() || '').trim();
+      if (!t) { el.focus(); alert('剪贴板是空的'); return; }
+      el.value = t;
+      el.focus();
+    } catch (e) {
+      // 浏览器不给读剪贴板时的兜底：聚焦输入框，让用户自己按 Ctrl+V
+      el.focus();
+      alert('浏览器不允许直接读剪贴板，请在输入框里按 Ctrl+V 粘贴');
+    }
+  };
+});
+
+document.querySelectorAll('button[data-clear]').forEach(b => {
+  b.onclick = () => {
+    const el = $(b.dataset.clear);
+    el.value = '';
+    el.focus();
+  };
+});
 
 /* ---------- 账号 / 额度 ---------- */
 let ME = null;
