@@ -85,16 +85,29 @@ Python 解析服务：
 取 CDN 资源用两段式：先不带 Referer，失败再补抖音 Referer 重试——
 字节系要 Referer，其它家反而对陌生 Referer 敏感。
 
-### AI 改写启用方式
+### AI 改写（已启用 2026-11-18）
 
-代码已就绪，缺 Key 时接口返回明确提示，不影响其它功能。启用只需给 PM2 加环境变量：
+后端走 OpenAI 兼容接口，Key 存在 PM2 的应用环境变量里（**不写进仓库**）：
 
 ```bash
-pm2 restart dy-web --update-env   # 先在 ecosystem/环境里设置下面三项
-# AI_API_KEY=sk-xxx              必填，OpenAI 兼容服务的 Key
-# AI_BASE_URL=https://api.deepseek.com/v1   可选，默认就是 DeepSeek
-# AI_MODEL=deepseek-chat         可选
+export AI_API_KEY=sk-...            # 必填
+export AI_BASE_URL=https://api.deepseek.com/v1   # 可选，默认就是这个
+export AI_MODEL=deepseek-chat       # 可选
+pm2 restart dy-web --update-env
+pm2 save                            # 必须 save，否则重启/ resurrect 后变量丢失
 ```
+
+排查方式：`tr '\0' '\n' < /proc/$(pm2 pid dy-web)/environ | grep ^AI_` 能直接看到进程真实环境。
+
+实测（deepseek-chat，同一段明前龙井文案）：
+
+| 模式 | 耗时 | 输出 |
+|---|---|---|
+| 伪原创改写 | ~1.0s | 41 字，换结构不换信息 |
+| 30秒口播 | ~1.1s | 103 字，带钩子和「评论区扣茶字」CTA |
+| 爆款标题 | ~1.6s | 10 条，均 ≤20 字 |
+| 提炼卖点 | ~1.0s | 5 条，具体可感知 |
+| 要点摘要 | ~0.9s | 3 条 + 一句话结论 |
 
 > 火山方舟那套 `ark-…` 的套餐 Key 只能调生图模型，文本模型会报
 > `UnsupportedModel: does not support the agent plan feature`，别拿它试 AI 改写。
