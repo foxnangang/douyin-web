@@ -57,6 +57,16 @@ VOICES = [
 
 RATE_RE = re.compile(r'^[+-]\d{1,3}%$')
 
+# 抖音等平台「分享」出来的是整段文案（说明 + 话题 + 链接），得先截出链接再解析
+URL_RE = re.compile(r"https?://[^\s，,。；;、）)】」”\"']+")
+
+
+def pick_url(raw: str) -> str:
+    """从整段分享文案里截出链接。纯链接后面紧贴中文时也能截断。"""
+    t = (raw or '').strip()
+    m = URL_RE.search(t)
+    return m.group(0).rstrip('，,。、；;）)】」”"\'') if m else t
+
 
 def dump(obj):
     if is_dataclass(obj):
@@ -77,6 +87,7 @@ async def health():
 async def parse(url: str):
     if not url or len(url) > 500:
         return JSONResponse({'code': 400, 'msg': '链接为空或过长'}, status_code=400)
+    url = pick_url(url)
 
     # 平台识别放在解析之前：识别不出来就直接给友好提示，不用等超时
     platform = ''

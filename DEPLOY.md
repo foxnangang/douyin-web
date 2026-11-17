@@ -72,7 +72,18 @@ Python 解析服务：
 | 去水印 | `/api/quick-parse` | 一个输入框贴任意平台链接，Python 侧 `share_url_source()` 自动识别平台并回传中文名 |
 | 抖音批量 | `/api/fetch` | 主页 / 点赞列表，需 Cookie，可限 50/200/500/全部 |
 | 文案配音 | `/api/tts` + `/api/voices` | edge-tts，8 个中文音色，语速 ±30%，输出 MP3 |
-| AI 改写 | `/api/ai` | 伪原创 / 30秒口播 / 爆款标题 / 提炼卖点 / 要点摘要 |
+| AI 改写 | `/api/ai` | 伪原创 / 30秒口播 / 爆款标题 / 提炼卖点 / 要点摘要 / AI 校对 |
+| AI 写作 | `/api/ai` (mode=write) | 标题 + 关键词 + 字数档位 → 成文，max_tokens 提到 4000 |
+| 文章摘要 | `/api/ai` (mode=digest) | 长文压成 200 字左右通顺摘要 |
+
+### 分享文案里抠链接（2026-11-18）
+
+抖音「分享」出来是整段文案：`4.64 04/02 q@r.Eh :1pm rEH/ 一只真土鸡…# 土鸡 # 散养鸡 https://v.douyin.com/xxx/`。
+直接当 URL 解析会报 `UnsupportedShareUrlError: 分享链接不是有效的 http/https 地址`。
+
+现在三层都加了 `pick_url()`（前端 JS / Rust / Python 各一份，规则一致）：
+用正则 `https?://[^\s，,。；;、）)】」”"']+` 抓第一个链接，再去掉尾巴上的中文标点。
+纯链接后面紧贴中文（`…/xxx/复制此链接`）也能正确截断。
 
 图集作品会自动出现「打包下载 N 张图」按钮，背景音乐则单独给「下载 BGM」。
 

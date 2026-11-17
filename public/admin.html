@@ -14,14 +14,32 @@
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.6}
-.wrap{max-width:1120px;margin:0 auto;padding:0 18px}
-header{background:#fff;border-bottom:1px solid var(--line);padding:14px 0}
-header .wrap{display:flex;align-items:center;justify-content:space-between;gap:12px}
-.logo{display:flex;align-items:center;gap:10px}
-.mark{width:32px;height:32px;border-radius:9px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600}
-h1{margin:0;font-size:16px;font-weight:600}
-h1 small{font-weight:400;color:var(--ink3);font-size:12px;margin-left:8px}
-button{font-family:inherit;font-size:13px;cursor:pointer;border:none;border-radius:8px;padding:8px 14px;background:var(--brand);color:#fff;transition:.15s}
+
+/* ---------- 布局 ---------- */
+.layout{display:flex;min-height:100vh}
+.side{width:210px;flex-shrink:0;background:#fff;border-right:1px solid var(--line);
+  display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+.side-brand{display:flex;align-items:center;gap:10px;padding:18px 16px 14px}
+.mark{width:32px;height:32px;border-radius:9px;background:var(--brand);color:#fff;
+  display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;flex-shrink:0}
+.side-brand b{display:block;font-size:14px;font-weight:600;line-height:1.3}
+.side-brand small{color:var(--ink3);font-size:11.5px}
+.menu{padding:4px 9px;display:flex;flex-direction:column;gap:2px;flex:1;overflow-y:auto}
+.mi{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;
+  font-size:13.5px;color:var(--ink2);cursor:pointer;transition:.14s;user-select:none}
+.mi svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.mi:hover{background:var(--bg);color:var(--ink)}
+.mi.on{background:var(--brand-l);color:var(--brand-d);font-weight:600}
+.side-foot{padding:12px;border-top:1px solid var(--line)}
+.side-foot button{width:100%}
+.main{flex:1;min-width:0;padding:0 22px 34px}
+.main-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:20px 0 6px}
+.main-head h2{margin:0;font-size:17px;font-weight:600}
+.main-head .desc{font-size:12.5px;color:var(--ink3);margin-top:2px}
+
+/* ---------- 控件 ---------- */
+button{font-family:inherit;font-size:13px;cursor:pointer;border:none;border-radius:8px;padding:8px 14px;
+  background:var(--brand);color:#fff;transition:.15s}
 button:hover{background:var(--brand-d)}
 button:disabled{opacity:.5;cursor:not-allowed}
 button.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand-line)}
@@ -29,11 +47,11 @@ button.ghost:hover{background:var(--brand-l)}
 button.sm{padding:5px 10px;font-size:12px;border-radius:6px}
 button.danger{background:#fff;color:var(--danger);border:1px solid #f0d5d1}
 button.danger:hover{background:#fdf1ef}
-input,select{font-family:inherit;font-size:13px;padding:8px 11px;border:1px solid var(--line);border-radius:8px;background:#fbfcfa;outline:none;color:var(--ink)}
+input,select{font-family:inherit;font-size:13px;padding:8px 11px;border:1px solid var(--line);
+  border-radius:8px;background:#fbfcfa;outline:none;color:var(--ink)}
 input:focus,select:focus{border-color:var(--brand);background:#fff}
-.tabs{display:flex;gap:6px;margin:18px 0 14px;flex-wrap:wrap}
-.tab{padding:7px 15px;border-radius:20px;border:1px solid var(--line);background:#fff;color:var(--ink2);font-size:13px;cursor:pointer}
-.tab.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+
+/* ---------- 卡片 / 表格 ---------- */
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:14px}
 .stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
 .stat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px}
@@ -52,15 +70,30 @@ tr:hover td{background:#fafbf9}
 .acts{display:flex;gap:5px}
 .tbl-wrap{overflow-x:auto}
 .empty{color:var(--ink3);text-align:center;padding:26px 0;font-size:13px}
+.pager{display:flex;gap:8px;align-items:center;margin-top:12px;font-size:12.5px;color:var(--ink3)}
+.hidden{display:none !important}
+
+/* ---------- 登录 ---------- */
 #loginBox{max-width:340px;margin:12vh auto;background:#fff;border:1px solid var(--line);border-radius:14px;padding:24px}
 #loginBox h2{margin:0 0 4px;font-size:16px}
 #loginBox p{margin:0 0 16px;font-size:12.5px;color:var(--ink3)}
 #loginBox input{width:100%;margin-bottom:10px}
 #loginBox button{width:100%}
 .err{color:var(--danger);font-size:12.5px;margin-top:10px;min-height:18px}
-.hidden{display:none !important}
-.pager{display:flex;gap:8px;align-items:center;margin-top:12px;font-size:12.5px;color:var(--ink3)}
-.foot{text-align:center;color:var(--ink3);font-size:12px;padding:18px 0 36px}
+
+/* ---------- 窄屏：菜单折到顶部横排 ---------- */
+@media(max-width:760px){
+  .layout{flex-direction:column}
+  .side{width:auto;height:auto;position:static;flex-direction:row;align-items:center;
+    border-right:none;border-bottom:1px solid var(--line);padding:8px 10px;gap:6px;overflow-x:auto}
+  .side-brand{padding:0 6px 0 0}
+  .side-brand small{display:none}
+  .menu{flex-direction:row;padding:0;gap:4px;flex:none}
+  .mi{white-space:nowrap;padding:7px 11px;font-size:13px}
+  .mi svg{display:none}
+  .side-foot{display:none}
+  .main{padding:0 14px 30px}
+}
 </style>
 </head>
 <body>
@@ -74,77 +107,104 @@ tr:hover td{background:#fafbf9}
 </div>
 
 <div id="app" class="hidden">
-  <header><div class="wrap">
-    <div class="logo"><div class="mark">抖</div><h1>管理后台<small>视频去水印</small></h1></div>
-    <div class="row">
-      <button class="ghost sm" id="btnRefresh">刷新</button>
-      <button class="ghost sm" id="btnLogout">退出</button>
-    </div>
-  </div></header>
-
-  <main class="wrap">
-    <div class="tabs">
-      <div class="tab on" data-tab="overview">概览</div>
-      <div class="tab" data-tab="users">用户</div>
-      <div class="tab" data-tab="codes">邀请码</div>
-      <div class="tab" data-tab="usage">用量流水</div>
-    </div>
-
-    <section id="tab-overview">
-      <div class="stats" id="statGrid"></div>
-      <div class="card" style="margin-top:14px">
-        <div class="row" style="justify-content:space-between;margin-bottom:10px">
-          <b style="font-size:14px">最近用量</b>
-          <span style="font-size:12px;color:var(--ink3)">只显示最近 10 条，完整流水去「用量流水」</span>
+  <div class="layout">
+    <aside class="side">
+      <div class="side-brand">
+        <div class="mark">抖</div>
+        <div><b>管理后台</b><small>视频去水印</small></div>
+      </div>
+      <nav class="menu">
+        <div class="mi on" data-tab="overview">
+          <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+          概览
         </div>
-        <div class="tbl-wrap"><table id="recentTbl"></table></div>
-      </div>
-    </section>
-
-    <section id="tab-users" class="hidden">
-      <div class="card">
-        <div class="row" style="margin-bottom:12px">
-          <input id="userQ" placeholder="按邮箱搜索" style="flex:1;min-width:180px;max-width:280px">
-          <button id="btnSearch">搜索</button>
+        <div class="mi" data-tab="users">
+          <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M16 5.2A3.2 3.2 0 0 1 16 11"/><path d="M17.5 14.6c2 .7 3.5 2.3 3.5 5.4"/></svg>
+          用户
         </div>
-        <div class="tbl-wrap"><table id="userTbl"></table></div>
-        <div class="pager" id="userPager"></div>
-      </div>
-    </section>
-
-    <section id="tab-codes" class="hidden">
-      <div class="card">
-        <div class="row" style="align-items:flex-end">
-          <div><div style="font-size:12px;color:var(--ink3);margin-bottom:4px">额度</div>
-            <input id="genQuota" type="number" value="100" min="1" style="width:100px"></div>
-          <div><div style="font-size:12px;color:var(--ink3);margin-bottom:4px">数量</div>
-            <input id="genCount" type="number" value="5" min="1" max="200" style="width:90px"></div>
-          <div><div style="font-size:12px;color:var(--ink3);margin-bottom:4px">有效期(天)</div>
-            <input id="genDays" type="number" value="365" min="0" style="width:110px"></div>
-          <div style="flex:1;min-width:140px"><div style="font-size:12px;color:var(--ink3);margin-bottom:4px">备注</div>
-            <input id="genNote" placeholder="比如 客户张三" style="width:100%"></div>
-          <button id="btnGen">生成</button>
+        <div class="mi" data-tab="codes">
+          <svg viewBox="0 0 24 24"><circle cx="8" cy="8" r="4"/><path d="m11 11 9 9"/><path d="m17 17 2-2"/><path d="m20 20 1.5-1.5"/></svg>
+          邀请码
         </div>
-        <div id="genResult" style="margin-top:10px;font-size:13px"></div>
+        <div class="mi" data-tab="usage">
+          <svg viewBox="0 0 24 24"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h10"/></svg>
+          用量流水
+        </div>
+      </nav>
+      <div class="side-foot">
+        <button class="ghost sm" id="btnLogout">退出登录</button>
       </div>
-      <div class="card">
-        <div class="tbl-wrap"><table id="codeTbl"></table></div>
-        <div class="pager" id="codePager"></div>
-      </div>
-    </section>
+    </aside>
 
-    <section id="tab-usage" class="hidden">
-      <div class="card">
-        <div class="tbl-wrap"><table id="usageTbl"></table></div>
+    <main class="main">
+      <div class="main-head">
+        <div>
+          <h2 id="pageTitle">概览</h2>
+          <div class="desc" id="pageDesc">注册、用量、额度的整体情况</div>
+        </div>
+        <button class="ghost sm" id="btnRefresh">刷新</button>
       </div>
-    </section>
-  </main>
-  <div class="foot">仅限本人使用 · 数据来自 SQLite，实时读写</div>
+
+      <section id="tab-overview">
+        <div class="stats" id="statGrid"></div>
+        <div class="card" style="margin-top:14px">
+          <div class="row" style="justify-content:space-between;margin-bottom:10px">
+            <b style="font-size:14px">最近用量</b>
+            <span style="font-size:12px;color:var(--ink3)">最近 10 条，完整流水看「用量流水」</span>
+          </div>
+          <div class="tbl-wrap"><table id="recentTbl"></table></div>
+        </div>
+      </section>
+
+      <section id="tab-users" class="hidden">
+        <div class="card">
+          <div class="row" style="margin-bottom:12px">
+            <input id="userQ" placeholder="按邮箱搜索" style="flex:1;min-width:180px;max-width:280px">
+            <button id="btnSearch">搜索</button>
+          </div>
+          <div class="tbl-wrap"><table id="userTbl"></table></div>
+          <div class="pager" id="userPager"></div>
+        </div>
+      </section>
+
+      <section id="tab-codes" class="hidden">
+        <div class="card">
+          <div class="row" style="align-items:flex-end">
+            <div><div style="font-size:12px;color:var(--ink3);margin-bottom:4px">额度(次)</div>
+              <input id="genQuota" type="number" value="100" min="1" style="width:100px"></div>
+            <div><div style="font-size:12px;color:var(--ink3);margin-bottom:4px">数量</div>
+              <input id="genCount" type="number" value="5" min="1" max="200" style="width:90px"></div>
+            <div><div style="font-size:12px;color:var(--ink3);margin-bottom:4px">有效期(天)</div>
+              <input id="genDays" type="number" value="365" min="0" style="width:110px"></div>
+            <div style="flex:1;min-width:140px"><div style="font-size:12px;color:var(--ink3);margin-bottom:4px">备注</div>
+              <input id="genNote" placeholder="比如 客户张三" style="width:100%"></div>
+            <button id="btnGen">生成</button>
+          </div>
+          <div id="genResult" style="margin-top:10px;font-size:13px"></div>
+        </div>
+        <div class="card">
+          <div class="tbl-wrap"><table id="codeTbl"></table></div>
+          <div class="pager" id="codePager"></div>
+        </div>
+      </section>
+
+      <section id="tab-usage" class="hidden">
+        <div class="card"><div class="tbl-wrap"><table id="usageTbl"></table></div></div>
+      </section>
+    </main>
+  </div>
 </div>
 
 <script>
 const $ = id => document.getElementById(id);
 const esc = s => { const d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; };
+
+const PAGE_META = {
+  overview: ['概览', '注册、用量、额度的整体情况'],
+  users: ['用户', '改额度、封禁、重置密码'],
+  codes: ['邀请码', '发码、查看状态、删除未使用的码'],
+  usage: ['用量流水', '最近 200 条扣费记录'],
+};
 
 async function api(path, body) {
   const opt = body === undefined ? {} : {
@@ -185,16 +245,19 @@ $('btnLogout').onclick = async () => {
 };
 $('btnRefresh').onclick = () => refreshCurrent();
 
-/* ---------- 标签切换 ---------- */
+/* ---------- 左侧菜单切换 ---------- */
 let curTab = 'overview';
-document.querySelectorAll('.tab').forEach(t => {
-  t.onclick = () => {
-    document.querySelectorAll('.tab').forEach(x => x.classList.remove('on'));
-    t.classList.add('on');
-    curTab = t.dataset.tab;
+document.querySelectorAll('.mi').forEach(m => {
+  m.onclick = () => {
+    document.querySelectorAll('.mi').forEach(x => x.classList.remove('on'));
+    m.classList.add('on');
+    curTab = m.dataset.tab;
     ['overview', 'users', 'codes', 'usage'].forEach(k => {
       $('tab-' + k).classList.toggle('hidden', k !== curTab);
     });
+    const meta = PAGE_META[curTab] || ['', ''];
+    $('pageTitle').textContent = meta[0];
+    $('pageDesc').textContent = meta[1];
     refreshCurrent();
   };
 });

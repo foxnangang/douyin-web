@@ -505,7 +505,8 @@ async fn parse(
         Ok(u) => u,
         Err(msg) => return Json(ApiResp::err(msg)),
     };
-    let url = req.url.trim();
+    let url = pick_url(&req.url);
+    let url = url.as_str();
     if url.is_empty() {
         return Json(ApiResp::err("请粘贴作品链接"));
     }
@@ -546,7 +547,8 @@ async fn fetch(
     if status != models::CookieStatus::Ok {
         return Json(ApiResp::err("Cookie 无效或已过期，请重新粘贴"));
     }
-    match st.client.fetch_plain(&req.url, &req.cookie, mode).await {
+    let share_url = pick_url(&req.url);
+    match st.client.fetch_plain(&share_url, &req.cookie, mode).await {
         Ok((profile, mut list)) => {
             if req.limit > 0 && list.len() > req.limit {
                 list.truncate(req.limit);
@@ -649,6 +651,24 @@ fn is_public_url(raw: &str) -> bool {
         return false;
     }
     matches!(u.port(), None | Some(80) | Some(443))
+}
+
+/// 从用户粘贴的整段分享文案里挑出链接。
+///
+/// 抖音分享出来的是「4.64 04/02 q@r.Eh :1pm rEH/ 一只真土鸡…# 土鸡 # 散养鸡 https://v.douyin.com/xxx/」
+/// 这种带一堆说明和话题的文本，直接当 URL 解析必然失败，得先截出 http 开头那一段。
+fn pick_url(raw: &str) -> String {
+    let t = raw.trim();
+    // 一律靠正则截：纯链接后面也可能紧贴中文（「https://v.douyin.com/xxx/复制此链接」）
+    let re = Regex::new(r#"https?://[^\s，,。；;、）)】」”\"']+"#).unwrap();
+    match re.find(t) {
+        Some(m) => m
+            .as_str()
+            .trim_end_matches(|c: char| "，,。、；;）)】」”\"'".contains(c))
+            .to_string(),
+        // 没有链接就原样返回，让后面的校验给出提示
+        None => t.to_string(),
+    }
 }
 
 /// 取 CDN 资源：先不带 Referer 试一次，失败再补抖音 Referer 重试。
@@ -833,12 +853,13 @@ async fn quick_parse(
             None
         }
     };
-    if q.url.trim().is_empty() {
+    let share_url = pick_url(&q.url);
+    if share_url.is_empty() {
         return Json(ApiResp::err("请粘贴分享链接"));
     }
     let target = format!(
         "http://127.0.0.1:8095/parse?url={}",
-        percent_encoding::utf8_percent_encode(&q.url, percent_encoding::CONTROLS)
+        percent_encoding::utf8_percent_encode(&share_url, percent_encoding::CONTROLS)
     );
     let resp = st
         .client
@@ -1158,7 +1179,8 @@ async fn asr_proxy(
         Ok(u) => u,
         Err(msg) => return Json(ApiResp::err(msg)),
     };
-    let url = q.url.trim();
+    let url = pick_url(&q.url);
+    let url = url.as_str();
     if url.is_empty() {
         return Json(ApiResp::err("缺少视频直链"));
     }
@@ -1219,6 +1241,12 @@ fn ai_prompt(mode: &str, text: &str) -> Option<(String, String)> {
         "script" => "改写成一条 30 秒短视频口播脚本（约 120~150 字）：开头 3 秒抓人，中间讲清一个点，结尾引导互动。只输出脚本正文。",
         "rewrite" => "对下面这段文案做伪原创改写：保留信息内核，换结构与用词，避免与原句雷同，读起来像人说的话。只输出改写后的文案。",
         "summary" => "总结下面内容：先给 3~5 条要点（编号），最后给一句话结论。",
+        "write" => {
+            "根据用户给出的标题、关键词和字数要求，写一篇结构完整、可直接发布的中文文章：\n            有抓人的开头、2~4 个分点正文、有收尾；标题不重复写进正文，不要写大纲，不要自称 AI。\n             只输出正文，段落之间空一行。"
+        }
+        "digest" => {
+            "把下面这段原文压缩成一段通顺的摘要，200 字左右：保留关键信息、数字和结论，\n             不分点、不评价、不添加原文没有的内容，只输出摘要正文。"
+        }
         "proofread" => {
             "下面是语音转写出来的文本，可能有同音字、错别字和缺失标点。请修正这些错误并补全标点，\
              保持原句顺序与原意，不要润色、不要改写、不要增删信息；无法确定的地方按最合理理解修正。\
@@ -1268,7 +1296,8 @@ async fn ai_rewrite(
             { "role": "user", "content": user_msg }
         ],
         "temperature": 0.7,
-        "max_tokens": 1200,
+        // 写文章要 2000 字，1200 不够会被截断
+        "max_tokens": if req.mode == "write" { 4000 } else { 1200 },
     });
 
     let resp = st
