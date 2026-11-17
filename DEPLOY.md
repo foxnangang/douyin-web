@@ -237,6 +237,10 @@ pm2 restart dy-web --update-env && pm2 save
 | 用户 | 按邮箱搜、分页；加次数、扣次数、封禁/解封、重置密码 |
 | 邀请码 | 批量生成（额度/数量/有效期/备注）、查看状态、删除未使用的码 |
 | 用量流水 | 最近 200 条扣费记录（含后台调整） |
+| 设置 | 修改管理密码（argon2 哈希存 `settings` 表，改完即时生效、当前会话不掉线） |
+
+**管理密码的取值顺序**：库里 `settings.admin_password_hash` → 没有则用环境变量 `ADMIN_PASSWORD`（明文）。
+忘记密码时执行 `python3 admin.py reset-admin-password`，会删掉库里的自定义密码，回落到环境变量那个值。
 
 实现要点：
 
