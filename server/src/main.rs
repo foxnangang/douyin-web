@@ -203,11 +203,14 @@ async fn check_cookie(
 const CDN_ALLOW: &[&str] = &[
     "douyinvod.com",
     "douyin.com",
+    "douyinpic.com",
     "ixigua.com",
+    "365yg.com",
     "byteimg.com",
     "snssdk.com",
     "bytedance.com",
     "byte-cdn.com",
+    "bytecdn.cn",
     "tiktok.com",
     "cdn-ali.tiktok.com",
 ];
