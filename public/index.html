@@ -61,6 +61,8 @@ button.ghost:hover{border-color:var(--primary);background:var(--primary-l)}
 .item .acts a:hover,.item .acts button:hover{background:var(--primary);color:#fff;border-color:var(--primary)}
 .empty{text-align:center;color:var(--muted);padding:44px 0;font-size:13px}
 .foot{text-align:center;font-size:11.5px;color:var(--muted);padding:16px 0 30px;line-height:1.8}
+.foot a{color:var(--primary);text-decoration:none;border-bottom:1px solid var(--primary-light-7, #c3d8d0);padding-bottom:1px}
+.foot a:hover{color:var(--primary-d);border-bottom-color:var(--primary-d)}
 code{background:var(--canvas);padding:1px 5px;border-radius:4px;font-size:11px;color:var(--regular)}
 .spinner{display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px;margin-right:5px}
 @keyframes sp{to{transform:rotate(360deg)}}
@@ -134,12 +136,31 @@ code{background:var(--canvas);padding:1px 5px;border-radius:4px;font-size:11px;c
 
 <div class="foot">
   作品版权归原作者所有，本工具仅提取公开直链，请勿用于侵权用途<br>
-  直链可能随时间失效，建议及时下载
+  直链可能随时间失效，建议及时下载<br>
+  <span style="display:inline-block;margin-top:8px">By <a href="https://foxnan.com" target="_blank" rel="noopener">安卿辰博客</a></span>
 </div>
 
 <script>
 const $ = id => document.getElementById(id);
 let allLinks = [];
+
+// Cookie 存浏览器本地，刷新后自动恢复（只存在本机，不上传服务器）
+const COOKIE_KEY = 'dy_web_cookie';
+try {
+  const saved = localStorage.getItem(COOKIE_KEY);
+  if (saved) {
+    $('cookie').value = saved;
+    $('dotCookie').className = 'dot ok';
+    $('cookieMsg').textContent = '已恢复上次的 Cookie';
+  }
+} catch (e) { /* 隐私模式下 localStorage 可能不可用，忽略 */ }
+$('cookie').addEventListener('input', () => {
+  try {
+    const v = $('cookie').value.trim();
+    if (v) localStorage.setItem(COOKIE_KEY, v);
+    else localStorage.removeItem(COOKIE_KEY);
+  } catch (e) { /* 忽略存储失败 */ }
+});
 
 document.querySelectorAll('.tab').forEach(tab => {
   tab.onclick = () => {
