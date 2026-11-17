@@ -1242,7 +1242,7 @@ async fn ai_rewrite(
     if text.chars().count() > 4000 {
         return Json(ApiResp::err("原文过长，请控制在 4000 字以内"));
     }
-    let Some((system, user)) = ai_prompt(&req.mode, text) else {
+    let Some((system, user_msg)) = ai_prompt(&req.mode, text) else {
         return Json(ApiResp::err(format!("未知模式: {}", req.mode)));
     };
 
@@ -1260,7 +1260,7 @@ async fn ai_rewrite(
         "model": model,
         "messages": [
             { "role": "system", "content": system },
-            { "role": "user", "content": user }
+            { "role": "user", "content": user_msg }
         ],
         "temperature": 0.7,
         "max_tokens": 1200,
