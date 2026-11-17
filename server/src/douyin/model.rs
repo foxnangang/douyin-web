@@ -110,6 +110,26 @@ pub struct VideoInfo {
     pub duration: i64,
     #[serde(default)]
     pub play_addr: Option<PlayAddr>,
+    /// 封面三档：`origin_cover` 是无字原图，`cover` 带播放按钮水印，
+    /// `dynamic_cover` 是动图封面（webp）。列表缩略图优先用 origin_cover。
+    #[serde(default)]
+    pub origin_cover: Option<UrlList>,
+    #[serde(default)]
+    pub cover: Option<UrlList>,
+    #[serde(default)]
+    pub dynamic_cover: Option<UrlList>,
+}
+
+impl VideoInfo {
+    /// 缩略图地址：优先原图封面，其次普通封面。
+    pub fn best_cover(&self) -> String {
+        for src in [self.origin_cover.as_ref(), self.cover.as_ref()] {
+            if let Some(u) = src.and_then(|s| s.url_list.first()).filter(|u| !u.is_empty()) {
+                return u.clone();
+            }
+        }
+        String::new()
+    }
 }
 
 #[derive(Debug, Deserialize, Default, Clone)]

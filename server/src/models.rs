@@ -29,6 +29,10 @@ pub struct TaskRow {
     pub ext: String,
     pub is_image: bool,
     pub url_hash: String,
+    /// 列表缩略图地址。视频取封面原图，图集取本行图片的低清版本。
+    /// 前端不直连（CDN 有防盗链），统一走 `/api/img` 代理。
+    #[serde(default)]
+    pub cover: String,
 }
 
 /// 四种取数模式。`Single` 走 aweme/detail，另外三种走列表接口分页。

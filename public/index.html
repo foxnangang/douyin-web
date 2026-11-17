@@ -50,9 +50,13 @@ button.ghost:hover{border-color:var(--primary);background:var(--primary-l)}
 .res-head b{color:var(--text)}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
 .item{border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--surface)}
-.thumb{height:150px;background:#eef0eb;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
-.thumb img{width:100%;height:100%;object-fit:cover}
-.thumb .kind{position:absolute;top:8px;left:8px;font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(0,0,0,.6);color:#fff}
+.thumb{height:150px;background:#eef0eb;overflow:hidden;position:relative}
+.thumb .ph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#c4cfc8;font-size:15px;letter-spacing:1px}
+.thumb img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:transform .25s}
+.item:hover .thumb img{transform:scale(1.04)}
+.thumb .kind{position:absolute;top:8px;left:8px;font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(0,0,0,.6);color:#fff;z-index:2}
+.thumb .play{position:absolute;right:8px;bottom:8px;width:26px;height:26px;border-radius:50%;background:rgba(0,0,0,.45);color:#fff;font-size:11px;display:flex;align-items:center;justify-content:center;z-index:2;pointer-events:none}
+.thumb.media{cursor:pointer}
 .item .body{padding:10px 12px}
 .item .desc{font-size:12.5px;line-height:1.5;max-height:38px;overflow:hidden;margin-bottom:8px}
 .item .meta{font-size:11px;color:var(--muted);margin-bottom:9px}
@@ -190,6 +194,14 @@ function setLoading(btn, on, text) {
 }
 function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
 
+// 缩略图统一走 /api/img 代理：抖音图片 CDN 有 Referer 校验，浏览器直连会 403
+function coverSrc(url) { return '/api/img?url=' + encodeURIComponent(url); }
+
+// 文件名去掉 Windows / macOS 不允许的字符，避免下载时名字乱码或回退成随机串
+function safeName(s) {
+  return (s || 'douyin').replace(/[\\/:*?"<>|\r\n\t]/g, '_').replace(/\s+/g, ' ').trim().slice(0, 40) || 'douyin';
+}
+
 $('btnCookie').onclick = async () => {
   const cookie = $('cookie').value.trim();
   if (!cookie) { showMsg('cookieResult', '请先粘贴 Cookie', 'err'); return; }
@@ -275,17 +287,35 @@ function renderResults(data) {
   grid.innerHTML = works.map(w => {
     const kindLabel = {video:'视频', image:'图片', live:'实况'}[w.kind] || w.kind;
     const isMedia = w.kind === 'image' || w.kind === 'live';
-    const media = isMedia && /\.(jpe?g|png|webp)/i.test(w.url)
-      ? '<img src="' + esc(w.url) + '" loading="lazy" referrerpolicy="no-referrer">' : '';
+    // 封面：优先后端给的 cover，图集再退回自身地址
+    const cover = w.cover || (isMedia ? w.url : '') || data.coverUrl || '';
+    const name = safeName(w.desc || w.awemeId);
+    const openUrl = '/api/download?url=' + encodeURIComponent(w.url) + '&name=' + encodeURIComponent(name) + '&inline=1';
+    const dlUrl = '/api/download?url=' + encodeURIComponent(w.url) + '&name=' + encodeURIComponent(name + '.' + (w.ext || 'mp4').replace(/^\./, '')) ;
     const date = (w.date || '').slice(0, 16);
-    return '<div class="item"><div class="thumb">' + media +
-      '<span class="kind">' + esc(kindLabel) + '</span></div>' +
+    const coverHtml = cover
+      ? '<img src="' + esc(coverSrc(cover)) + '" loading="lazy" decoding="async" alt="" data-cover="1">'
+      : '';
+    return '<div class="item"><div class="thumb' + (w.url ? ' media' : '') + '" data-open="' + esc(openUrl) + '">' +
+      '<div class="ph">暂无预览</div>' + coverHtml +
+      '<span class="kind">' + esc(kindLabel) + '</span>' +
+      (w.kind === 'video' || w.kind === 'live' ? '<span class="play">▶</span>' : '') +
+      '</div>' +
       '<div class="body"><div class="desc">' + esc(w.desc) + '</div>' +
       '<div class="meta">' + esc(date) + (w.mix ? ' · ' + esc(w.mix) : '') + '</div>' +
-      '<div class="acts"><a href="/api/download?url=' + encodeURIComponent(w.url) + '&name=' + encodeURIComponent((w.desc||w.awemeId||'douyin').slice(0,30)) + '&inline=1" target="_blank">打开</a>' +
-      '<a href="/api/download?url=' + encodeURIComponent(w.url) + '&name=' + encodeURIComponent((w.desc||w.awemeId||'douyin').slice(0,30) + '.' + (w.ext||'mp4')) + '">下载</a>' +
+      '<div class="acts"><a href="' + esc(openUrl) + '" target="_blank" rel="noopener">打开</a>' +
+      '<a href="' + esc(dlUrl) + '">下载</a>' +
       '<button data-link="' + esc(w.url) + '">复制</button></div></div></div>';
   }).join('');
+
+  // 封面加载失败就隐藏 img，露出后面的占位文字（不弹 console 报错）
+  grid.querySelectorAll('img[data-cover]').forEach(img => {
+    img.onerror = () => { img.style.display = 'none'; };
+  });
+  // 点缩略图直接预览原图/原视频
+  grid.querySelectorAll('.thumb[data-open]').forEach(t => {
+    t.onclick = () => { if (t.dataset.open) window.open(t.dataset.open, '_blank', 'noopener'); };
+  });
   grid.querySelectorAll('button[data-link]').forEach(b => {
     b.onclick = () => { navigator.clipboard.writeText(b.dataset.link); b.textContent='已复制'; setTimeout(()=>b.textContent='复制',1500); };
   });

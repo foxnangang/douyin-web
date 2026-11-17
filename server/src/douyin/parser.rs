@@ -145,6 +145,20 @@ pub fn parse_aweme(value: &serde_json::Value, owner: &Owner) -> Vec<TaskRow> {
             let play_url = best_play_url(v).unwrap_or_else(|| url.clone());
             if !is_album || is_real_video(v, &url) {
                 let ext = extension_from_url(&url, ".mp4");
+                // 封面兜底：视频没给封面时，取图集首图（图集背景音场景）
+                let cover = {
+                    let c = v.best_cover();
+                    if c.is_empty() {
+                        a.images
+                            .as_ref()
+                            .and_then(|imgs| imgs.first())
+                            .and_then(|img| img.url_list.first())
+                            .cloned()
+                            .unwrap_or_default()
+                    } else {
+                        c
+                    }
+                };
                 rows.push(TaskRow {
                     id: make_id(&aweme_id, &mut seq),
                     aweme_id: aweme_id.clone(),
@@ -160,6 +174,7 @@ pub fn parse_aweme(value: &serde_json::Value, owner: &Owner) -> Vec<TaskRow> {
                     play_url,
                     ext,
                     is_image: false,
+                    cover,
                 });
             }
         }
@@ -176,6 +191,13 @@ pub fn parse_aweme(value: &serde_json::Value, owner: &Owner) -> Vec<TaskRow> {
                     if let Some(url) = best_bitrate_url(v) {
                         live_idx += 1;
                         let ext = extension_from_url(&url, ".mp4");
+                        // 实况图用静态帧做封面（首图低清那条），退回视频封面
+                        let cover = img
+                            .url_list
+                            .first()
+                            .cloned()
+                            .filter(|s| !s.is_empty())
+                            .unwrap_or_else(|| v.best_cover());
                         rows.push(TaskRow {
                             id: make_id(&aweme_id, &mut seq),
                             aweme_id: aweme_id.clone(),
@@ -191,6 +213,7 @@ pub fn parse_aweme(value: &serde_json::Value, owner: &Owner) -> Vec<TaskRow> {
                             url,
                             ext,
                             is_image: true,
+                            cover,
                         });
                     }
                     continue; // 互斥：有实况就不取静态图
@@ -201,6 +224,13 @@ pub fn parse_aweme(value: &serde_json::Value, owner: &Owner) -> Vec<TaskRow> {
                 if !url.is_empty() {
                     idx += 1;
                     let ext = extension_from_url(url, ".jpg");
+                    // 缩略图取首条（低清、体积小），下载仍用高清原图
+                    let cover = img
+                        .url_list
+                        .first()
+                        .cloned()
+                        .filter(|s| !s.is_empty())
+                        .unwrap_or_else(|| url.clone());
                     rows.push(TaskRow {
                         id: make_id(&aweme_id, &mut seq),
                         aweme_id: aweme_id.clone(),
@@ -216,6 +246,7 @@ pub fn parse_aweme(value: &serde_json::Value, owner: &Owner) -> Vec<TaskRow> {
                         url: url.clone(),
                         ext,
                         is_image: true,
+                        cover,
                     });
                 }
             }
@@ -389,6 +420,60 @@ mod tests {
     fn malformed_aweme_does_not_panic() {
         assert!(parse_aweme(&serde_json::json!({}), &Owner::default()).is_empty());
         assert!(parse_aweme(&serde_json::json!({"images": "not-an-array"}), &Owner::default()).is_empty());
+    }
+
+    #[test]
+    fn video_cover_prefers_origin_cover() {
+        let v = serde_json::json!({
+            "aweme_id": "1",
+            "desc": "带封面",
+            "video": {
+                "bit_rate": [{"bit_rate": 900, "play_addr": {"url_list": ["https://cdn/v.mp4"]}}],
+                "cover": {"url_list": ["https://p3.douyinpic.com/cover.jpeg"]},
+                "origin_cover": {"url_list": ["https://p3.douyinpic.com/origin.jpeg"]}
+            }
+        });
+        let rows = parse_aweme(&v, &Owner::default());
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].cover, "https://p3.douyinpic.com/origin.jpeg");
+    }
+
+    #[test]
+    fn album_bgm_not_video_and_thumb_uses_low_res() {
+        // 图集作品顶层 video 是 BGM（mp3），不能被当成视频任务；
+        // 缩略图用低清首条，下载用高清末条
+        let v = serde_json::json!({
+            "aweme_id": "2",
+            "desc": "图集带背景音",
+            "video": {
+                "bit_rate": [{"bit_rate": 900, "play_addr": {"url_list": ["https://cdn/bgm.mp3"]}}],
+                "cover": {"url_list": ["https://p3.douyinpic.com/c.jpeg"]}
+            },
+            "images": [{"url_list": ["https://p3.douyinpic.com/s1.jpeg", "https://p3.douyinpic.com/l1.jpeg"]}]
+        });
+        let rows = parse_aweme(&v, &Owner::default());
+        // 只有 1 张图，mp3 不应变成视频任务
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].kind, "image");
+        // 缩略图用低清首条，下载用高清末条
+        assert_eq!(rows[0].cover, "https://p3.douyinpic.com/s1.jpeg");
+        assert_eq!(rows[0].url, "https://p3.douyinpic.com/l1.jpeg");
+    }
+
+    #[test]
+    fn live_photo_uses_still_frame_as_cover() {
+        let v = serde_json::json!({
+            "aweme_id": "3",
+            "desc": "实况",
+            "images": [{
+                "url_list": ["https://p3.douyinpic.com/still.jpg"],
+                "video": {"bit_rate": [{"bit_rate": 800, "play_addr": {"url_list": ["https://cdn/live.mp4"]}}]}
+            }]
+        });
+        let rows = parse_aweme(&v, &Owner::default());
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].kind, "live");
+        assert_eq!(rows[0].cover, "https://p3.douyinpic.com/still.jpg");
     }
 
     #[test]

@@ -295,6 +295,83 @@ async fn download(
 }
 
 #[derive(Debug, Deserialize)]
+struct ImgReq {
+    url: String,
+}
+
+/// 缩略图代理。
+///
+/// 抖音图片 CDN（`douyinpic.com` 等）对 `Referer` 有校验，浏览器里 `<img>`
+/// 直接引用常年 403；即便放行，跨域 + 无缓存也慢。这里由后端带上正确
+/// Referer 取回字节再吐给浏览器，并加长缓存头——用户反复翻列表不再回源。
+async fn image_proxy(
+    State(st): State<AppState>,
+    Query(q): Query<ImgReq>,
+) -> Response {
+    if !is_allowed_cdn(&q.url) {
+        return (StatusCode::BAD_REQUEST, "仅允许代理抖音 CDN 域名").into_response();
+    }
+
+    let resp = st
+        .client
+        .client
+        .get(&q.url)
+        .header(header::REFERER, "https://www.douyin.com/")
+        .header(header::USER_AGENT, douyin::api::UA)
+        .send()
+        .await;
+
+    let upstream = match resp {
+        Ok(r) => r,
+        Err(e) => {
+            return (StatusCode::BAD_GATEWAY, format!("请求图片失败: {e}")).into_response()
+        }
+    };
+
+    let status = upstream.status();
+    if !status.is_success() {
+        return (
+            StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::BAD_GATEWAY),
+            format!("图片 CDN 返回 {status}"),
+        )
+            .into_response();
+    }
+
+    // 只放行图片类型，避免这条路径被拿来传任意文件
+    let ct = upstream
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("image/jpeg")
+        .to_string();
+    if !ct.starts_with("image/") {
+        return (StatusCode::BAD_GATEWAY, format!("上游不是图片: {ct}")).into_response();
+    }
+
+    let bytes = match upstream.bytes().await {
+        Ok(b) => b,
+        Err(e) => {
+            return (StatusCode::BAD_GATEWAY, format!("读取图片失败: {e}")).into_response()
+        }
+    };
+
+    let mut headers = HeaderMap::new();
+    if let Ok(v) = HeaderValue::from_str(&ct) {
+        headers.insert(header::CONTENT_TYPE, v);
+    }
+    headers.insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("public, max-age=604800, immutable"),
+    );
+    headers.insert(
+        header::X_CONTENT_TYPE_OPTIONS,
+        HeaderValue::from_static("nosniff"),
+    );
+
+    (StatusCode::OK, headers, Body::from(bytes.to_vec())).into_response()
+}
+
+#[derive(Debug, Deserialize)]
 struct QuickReq {
     url: String,
 }
@@ -326,6 +403,7 @@ async fn quick_parse(
         return Json(ApiResp::err(msg));
     }
     let d = body.get("data").cloned().unwrap_or_default();
+    let cover = d.get("cover_url").and_then(|v| v.as_str()).unwrap_or("");
     // 映射成前端统一的作品行（TaskRow 风格），无水印直链放 url 字段
     let row = serde_json::json!({
         "id": "quick-1",
@@ -336,6 +414,7 @@ async fn quick_parse(
         "playUrl": d.get("video_url").and_then(|v| v.as_str()).unwrap_or(""),
         "ext": "mp4",
         "isImage": false,
+        "cover": cover,
         "date": "",
         "mix": "",
         "ownerNickname": d.get("author").and_then(|a| a.get("name")).and_then(|v| v.as_str()).unwrap_or(""),
@@ -382,6 +461,7 @@ async fn main() {
         .route("/api/fetch", post(fetch))
         .route("/api/cookie/check", post(check_cookie))
         .route("/api/download", get(download))
+        .route("/api/img", get(image_proxy))
         .route("/api/quick-parse", get(quick_parse))
         .with_state(state)
         .layer(cors);

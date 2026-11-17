@@ -17,7 +17,9 @@
 dy.foxnan.com
    ├─ /api/quick-parse  →  127.0.0.1:8095 (Python parse-video-py)  免 Cookie，分享短链
    ├─ /api/parse        →  Rust 核心 a_bogus 签名                  需 Cookie，单作品
-   └─ /api/fetch        →  Rust 核心 a_bogus 签名                  需 Cookie，主页/点赞批量
+   ├─ /api/fetch        →  Rust 核心 a_bogus 签名                  需 Cookie，主页/点赞批量
+   ├─ /api/download     →  流式代理抖音 CDN 视频/图片（带 Referer，解防盗链）
+   └─ /api/img          →  缩略图代理（同上，只放行 image/*，缓存 7 天）
 ```
 
 | 引擎 | 服务 | 用途 | Cookie |
@@ -34,6 +36,20 @@ Python 解析服务：
 - 监听：`127.0.0.1:8095`（外部无法直连）
 - PM2 进程：`dy-parser`
 - 上游更新后需重装并重打补丁
+
+下载代理白名单（`CDN_ALLOW`）：`douyinvod.com / douyin.com / douyinpic.com / ixigua.com / 365yg.com / byteimg.com / snssdk.com / bytedance.com / byte-cdn.com / bytecdn.cn / tiktok.com / cdn-ali.tiktok.com`
+
+> 坑：快速解析返回的直链常是 `365yg.com`（西瓜视频 CDN），最初白名单没有它，导致点下载被拦截。2026-11-18 已补。新增平台时需同步检查白名单。
+
+## 缩略图代理（2026-11-18）
+
+列表卡片封面统一走 `/api/img?url=<encodeURIComponent(封面地址)>`：
+
+- 抖音图片 CDN（`douyinpic.com` 等）校验 `Referer`，浏览器 `<img>` 直连常 403，且跨域不稳定
+- 后端带 `Referer: https://www.douyin.com/` + 真实 UA 取回字节，`Cache-Control: public, max-age=604800, immutable`，反复翻列表不回源
+- 只放行 `image/*` 类型 + 同一个 `CDN_ALLOW` 白名单，防止被当成开放代理
+- 封面字段来源：`TaskRow.cover`（视频取 `video.origin_cover` 优先，图集取该图 `url_list[0]` 低清版）；快速解析取 Python 返回的 `cover_url`
+- 前端 `img` 加载失败自动隐藏，露出「暂无预览」占位，不弹错
 
 ## 功能
 
