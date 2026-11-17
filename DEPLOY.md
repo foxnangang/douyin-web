@@ -1,0 +1,95 @@
+# 抖音作品解析 · 在线工具（网页版）
+
+## 站点信息
+
+| 项目 | 值 |
+|---|---|
+| 访问地址 | https://dy.foxnan.com/ |
+| HTTPS | ✅ 已启用（ZeroSSL ECC，2026-11-18 签发，有效期至 2027-02-15），80 自动跳转 443 |
+| 服务器 | 124.221.136.214 |
+| 部署目录 | `/www/wwwroot/dy.foxnan.com/` |
+| 后端端口 | 8094（PM2 进程 `douyin-web`） |
+| 源码仓库 | https://github.com/foxnangang/douyin-web |
+
+## 功能
+
+1. **单链接解析**：粘贴作品链接 → 返回无水印直链（视频/图集/实况），可在线打开或下载
+2. **主页/点赞批量解析**：粘贴用户主页，批量列出作品，支持条数限制（50/200/500/全部）
+3. **Cookie 校验**：粘贴抖音 Cookie，校验有效性并显示账号昵称
+
+## 架构
+
+```
+浏览器 → Nginx(80) → 127.0.0.1:8094 → Rust HTTP 服务(axum)
+                                          ├─ a_bogus 签名（SM3+RC4+自定义Base64）
+                                          ├─ 抖音 aweme/v1/web/ 接口
+                                          └─ 静态页面 public/
+```
+
+- 后端复用 `douyin-downloader` v4.0 的签名与接口层（`douyin/` 模块原样复制），未重写算法
+- 服务器**无需安装 Rust**：二进制由 GitHub Actions 在云端编译（ubuntu-latest + dtolnay/rust-toolchain）
+- 前端为单文件 HTML，墨绿主题，与桌面定制版视觉一致
+
+## 重要限制：必须提供 Cookie
+
+抖音接口有 `ArgusSecurityPlugin` 风控，服务端无 Cookie 请求会被拦：
+
+```
+HTTP 403 Blocked by ArgusSecurityPlugin Uifid Not Found
+```
+
+这与原桌面版一致（桌面版也要扫码登录后才工作）。网页版因浏览器无法读取 HttpOnly Cookie，**改为用户手动粘贴 Cookie**。
+
+获取方式：浏览器登录抖音 → F12 → Network → 任意请求 → Request Headers → 复制整段 Cookie。
+
+## 部署与运维
+
+### 重新部署
+
+```bash
+# 本地：改代码 → 推送
+git push origin main    # 触发 Actions 编译
+
+# 下载 artifact 后上传到服务器
+scp douyin-web-server root@124.221.136.214:/www/wwwroot/dy.foxnan.com/
+scp public/index.html root@124.221.136.214:/www/wwwroot/dy.foxnan.com/public/
+
+# 服务器：重启
+pm2 restart douyin-web
+```
+
+### 端口占用说明
+
+- 8093 已被 `lead_gen_api` 占用，故本服务用 **8094**
+- 二进制默认端口 8093，由 PM2 启动时用 `PORT=8094` 环境变量覆盖
+
+### HTTPS（2026-11-18 已完成）
+
+- 签发：ZeroSSL ECC DV SSL，有效期 2026-11-17 至 2027-02-15
+- 自动续期：acme.sh 已配置，下次续期窗口由 ARI 指定（2027-02-01 前后）
+- 证书路径：`/www/server/panel/vhost/cert/dy.foxnan.com/{fullchain.pem,privkey.pem}`
+- Nginx：443 server 块已启用，80 端口 301 跳转 HTTPS
+- 配置备份：`/www/server/panel/vhost/nginx/dy.foxnan.com.conf.bak-20261118`
+
+历史说明：首次用 `--force` 申请触发 CA 限流（`retryafter=86400`），约 1 小时后不带 `--force` 重试即成功。教训：域名首次签发不要用 `--force`。
+
+## 验证记录（2026-11-18）
+
+| 项目 | 结果 |
+|---|---|
+| GitHub Actions 编译 | ✅ success |
+| 二进制本地启动 | ✅ 健康检查通过 |
+| PM2 进程 | ✅ online，0 重启 |
+| 首页访问 | ✅ HTTPS HTTP 200，14542 bytes |
+| 公网访问 | ✅ HTTPS 200，证书链验证通过（ssl_verify_result=0） |
+| HTTP 跳转 | ✅ 80 端口 301 → https://dy.foxnan.com/ |
+| HTTPS | ✅ ZeroSSL ECC，有效期至 2027-02-15 |
+| 单链接解析（无 Cookie） | ❌ 抖音风控 403（预期行为，需 Cookie） |
+| API 错误处理 | ✅ 返回明确错误 |
+| HTTPS | ⏳ CA 限流待签 |
+
+## 法律声明
+
+- 本工具仅提取公开直链，请勿用于侵权用途
+- 原项目 LICENSE（MIT + 禁止商用附加条款）保留在桌面版仓库中
+- 网页版复用其签名算法（源自 f2，Apache-2.0）
