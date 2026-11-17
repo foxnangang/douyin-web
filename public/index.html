@@ -402,6 +402,7 @@ footer a:hover{text-decoration:underline}
       <div class="mtab on" data-pane="login">登录</div>
       <div class="mtab" data-pane="register">注册</div>
       <div class="mtab" data-pane="recharge" id="tabRecharge" style="display:none">充值</div>
+      <div class="mtab" data-pane="profile" id="tabProfile" style="display:none">我的</div>
     </div>
 
     <div id="pane-login">
@@ -423,6 +424,15 @@ footer a:hover{text-decoration:underline}
       <input type="text" id="rcCode" placeholder="邀请码">
       <button class="submit" id="btnRedeem">充值</button>
       <p class="mhint">充完额度会叠加到当前账号，按次扣：解析 1 次、批量 5 次、转写 3 次、AI 1 次。</p>
+    </div>
+
+    <div id="pane-profile" style="display:none">
+      <div style="font-size:12.5px;color:var(--ink3);margin-bottom:10px">
+        邮箱：<span id="profEmail">-</span>
+      </div>
+      <input type="text" id="nickInput" placeholder="昵称（1~16 字）" maxlength="16">
+      <button class="submit" id="btnNick">保存昵称</button>
+      <p class="mhint">昵称只显示在你自己和后台，不影响登录。</p>
     </div>
 
     <div class="msg" id="authMsg"></div>
@@ -902,17 +912,23 @@ function authMsg(text, type) {
 }
 
 function setPane(p) {
-  ['login', 'register', 'recharge'].forEach(k => {
+  ['login', 'register', 'recharge', 'profile'].forEach(k => {
     $('pane-' + k).style.display = (k === p ? 'block' : 'none');
   });
   document.querySelectorAll('.mtab').forEach(t => t.classList.toggle('on', t.dataset.pane === p));
-  $('authTitle').textContent = p === 'login' ? '登录' : (p === 'register' ? '注册（需邀请码）' : '充值额度');
+  const titles = { login: '登录', register: '注册（需邀请码）', recharge: '充值额度', profile: '我的账号' };
+  $('authTitle').textContent = titles[p] || '登录';
+  if (p === 'profile' && ME) {
+    $('profEmail').textContent = ME.email;
+    $('nickInput').value = ME.nickname || '';
+  }
   authMsg('', '');
 }
 
 function openAuth(p) {
-  if (p === 'recharge' && !ME) p = 'login';
+  if ((p === 'recharge' || p === 'profile') && !ME) p = 'login';
   $('tabRecharge').style.display = ME ? '' : 'none';
+  $('tabProfile').style.display = ME ? '' : 'none';
   setPane(p || 'login');
   $('authMask').classList.add('on');
 }
@@ -925,9 +941,12 @@ $('authMask').onclick = e => { if (e.target === $('authMask')) closeAuth(); };
 function renderAuth() {
   const area = $('authArea');
   if (ME) {
-    area.innerHTML = '<span class="user-chip"><em>' + esc(ME.email) + '</em><b>' + ME.balance + ' 次</b></span>'
+    const shown = ME.nickname || (ME.email || '').split('@')[0];
+    area.innerHTML = '<span class="user-chip" id="btnChip" title="' + esc(ME.email) + '">'
+      + '<em>' + esc(shown) + '</em><b>' + ME.balance + ' 次</b></span>'
       + '<button class="ghost sm" id="btnRecharge">充值</button>'
       + '<button class="ghost sm" id="btnLogout">退出</button>';
+    $('btnChip').onclick = () => openAuth('profile');
     $('btnRecharge').onclick = () => openAuth('recharge');
     $('btnLogout').onclick = doLogout;
   } else {
@@ -935,6 +954,7 @@ function renderAuth() {
     $('btnAuthOpen').onclick = () => openAuth('login');
   }
   $('tabRecharge').style.display = ME ? '' : 'none';
+  $('tabProfile').style.display = ME ? '' : 'none';
 }
 
 async function refreshMe() {
@@ -1014,6 +1034,25 @@ $('btnRedeem').onclick = async () => {
   } catch (e) {
     authMsg('请求失败：' + e.message, 'err');
   } finally { setLoading(btn, false, '充值'); }
+};
+
+$('btnNick').onclick = async () => {
+  const name = $('nickInput').value.trim();
+  if (!name) { authMsg('昵称不能为空', 'err'); return; }
+  const btn = $('btnNick');
+  setLoading(btn, true, '保存昵称');
+  try {
+    const r = await fetch('/api/auth/nickname', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ nickname: name })
+    }).then(x => x.json());
+    if (!r.ok) { authMsg(r.error || '保存失败', 'err'); return; }
+    ME = r.data;
+    renderAuth();
+    authMsg('昵称已改成「' + ME.nickname + '」', 'ok');
+  } catch (e) {
+    authMsg('请求失败：' + e.message, 'err');
+  } finally { setLoading(btn, false, '保存昵称'); }
 };
 
 // 出错时如果原因是「没登录 / 额度不足」，顺手把该开的弹窗打开

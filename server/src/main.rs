@@ -357,7 +357,7 @@ async fn auth_login(
     Json(req): Json<LoginReq>,
 ) -> Response {
     let email = req.email.trim().to_lowercase();
-    let Some((id, hash, status, balance)) = st.db.find_login(&email) else {
+    let Some((id, hash, status, balance, nickname)) = st.db.find_login(&email) else {
         return json_err(StatusCode::UNAUTHORIZED, "邮箱或密码不对");
     };
     if status != "active" {
@@ -379,7 +379,7 @@ async fn auth_login(
         h,
         Json(serde_json::json!({
             "ok": true,
-            "data": { "email": email, "balance": balance }
+            "data": { "email": email, "nickname": nickname, "balance": balance }
         })),
     )
         .into_response()
@@ -401,7 +401,7 @@ async fn auth_me(State(st): State<AppState>, headers: HeaderMap) -> Response {
     match require_user(&st, &headers) {
         Ok(u) => Json(serde_json::json!({
             "ok": true,
-            "data": { "email": u.email, "balance": u.balance }
+            "data": { "email": u.email, "nickname": u.nickname, "balance": u.balance }
         }))
         .into_response(),
         Err(_) => Json(serde_json::json!({ "ok": false, "data": null })).into_response(),
@@ -434,6 +434,35 @@ async fn auth_redeem(
         }))
         .into_response(),
         Err(e) => json_err(StatusCode::BAD_REQUEST, &e.text()),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct NickReq {
+    nickname: String,
+}
+
+/// 用户自己改昵称：1~16 字，去掉首尾空白
+async fn auth_nickname(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<NickReq>,
+) -> Response {
+    let user = match require_user(&st, &headers) {
+        Ok(u) => u,
+        Err(msg) => return json_err(StatusCode::UNAUTHORIZED, &msg),
+    };
+    let name: String = req.nickname.trim().chars().take(16).collect();
+    if name.is_empty() {
+        return json_err(StatusCode::BAD_REQUEST, "昵称不能为空");
+    }
+    match st.db.set_nickname(user.id, &name) {
+        Ok(()) => Json(serde_json::json!({
+            "ok": true,
+            "data": { "email": user.email, "nickname": name, "balance": user.balance }
+        }))
+        .into_response(),
+        Err(e) => json_err(StatusCode::INTERNAL_SERVER_ERROR, &e.text()),
     }
 }
 
@@ -1512,6 +1541,86 @@ struct AdminUsersQ {
     q: String,
     #[serde(default)]
     page: i64,
+    #[serde(default)]
+    size: i64,
+}
+
+async fn admin_trend(State(st): State<AppState>, headers: HeaderMap) -> Response {
+    if let Some(r) = admin_guard(&st, &headers) {
+        return r;
+    }
+    Json(serde_json::json!({ "ok": true, "data": st.db.trend(7) })).into_response()
+}
+
+const BACKUP_DIR: &str = "backups";
+
+fn list_backups() -> Vec<serde_json::Value> {
+    let mut out = Vec::new();
+    if let Ok(rd) = std::fs::read_dir(BACKUP_DIR) {
+        for e in rd.flatten() {
+            let name = e.file_name().to_string_lossy().to_string();
+            if !name.ends_with(".db.gz") {
+                continue;
+            }
+            let meta = match e.metadata() {
+                Ok(m) => m,
+                Err(_) => continue,
+            };
+            let mtime = meta
+                .modified()
+                .ok()
+                .map(|t| {
+                    let dt: chrono::DateTime<chrono::Local> = t.into();
+                    dt.format("%Y-%m-%d %H:%M:%S").to_string()
+                })
+                .unwrap_or_default();
+            out.push(serde_json::json!({
+                "name": name,
+                "size": meta.len(),
+                "time": mtime,
+            }));
+        }
+    }
+    out.sort_by(|a, b| b["name"].as_str().unwrap_or("").cmp(a["name"].as_str().unwrap_or("")));
+    out
+}
+
+async fn admin_backups(State(st): State<AppState>, headers: HeaderMap) -> Response {
+    if let Some(r) = admin_guard(&st, &headers) {
+        return r;
+    }
+    Json(serde_json::json!({ "ok": true, "data": list_backups() })).into_response()
+}
+
+/// 手动触发一次备份（跑 backup.py，和 cron 用的是同一个脚本）
+async fn admin_backup_now(State(st): State<AppState>, headers: HeaderMap) -> Response {
+    if let Some(r) = admin_guard(&st, &headers) {
+        return r;
+    }
+    let result = tokio::task::spawn_blocking(|| {
+        std::process::Command::new("python3")
+            .arg("backup.py")
+            .output()
+    })
+    .await;
+
+    match result {
+        Ok(Ok(out)) => {
+            let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+            if out.status.success() {
+                tracing::info!("manual backup ok: {stdout}");
+                Json(serde_json::json!({ "ok": true, "data": { "log": stdout } })).into_response()
+            } else {
+                json_err(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    &format!("备份失败：{}", if stderr.is_empty() { stdout } else { stderr }),
+                )
+            }
+        }
+        Ok(Err(e)) => json_err(StatusCode::INTERNAL_SERVER_ERROR, &format!("无法执行备份：{e}")),
+        Err(e) => json_err(StatusCode::INTERNAL_SERVER_ERROR, &format!("备份任务异常：{e}")),
+    }
 }
 
 async fn admin_users(
@@ -1522,7 +1631,7 @@ async fn admin_users(
     if let Some(r) = admin_guard(&st, &headers) {
         return r;
     }
-    let size = 20;
+    let size = if q.size > 0 { q.size.clamp(1, 500) } else { 20 };
     let page = q.page.max(1);
     let rows = st.db.list_users(&q.q, size, (page - 1) * size);
     let total = st.db.count_users(&q.q);
@@ -1701,6 +1810,8 @@ async fn admin_code_del(
 struct UsageQ {
     #[serde(default = "default_usage_limit")]
     limit: i64,
+    #[serde(default)]
+    q: String,
 }
 
 fn default_usage_limit() -> i64 {
@@ -1715,7 +1826,7 @@ async fn admin_usage(
     if let Some(r) = admin_guard(&st, &headers) {
         return r;
     }
-    let rows = st.db.recent_usage(q.limit.clamp(1, 500));
+    let rows = st.db.recent_usage(q.limit.clamp(1, 500), &q.q);
     Json(serde_json::json!({ "ok": true, "data": rows })).into_response()
 }
 
@@ -1771,6 +1882,7 @@ async fn main() {
         .route("/api/auth/logout", post(auth_logout))
         .route("/api/auth/me", get(auth_me))
         .route("/api/auth/redeem", post(auth_redeem))
+        .route("/api/auth/nickname", post(auth_nickname))
         .route("/internal/issue-code", post(issue_code_internal))
         .route("/api/admin/login", post(admin_login))
         .route("/api/admin/logout", post(admin_logout))
@@ -1784,6 +1896,9 @@ async fn main() {
         .route("/api/admin/codes/gen", post(admin_code_gen))
         .route("/api/admin/code/delete", post(admin_code_del))
         .route("/api/admin/usage", get(admin_usage))
+        .route("/api/admin/trend", get(admin_trend))
+        .route("/api/admin/backups", get(admin_backups))
+        .route("/api/admin/backup", post(admin_backup_now))
         .with_state(state)
         .layer(cors);
 

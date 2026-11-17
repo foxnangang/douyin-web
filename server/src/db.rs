@@ -13,6 +13,7 @@ const SCHEMA: &str = r#"
 CREATE TABLE IF NOT EXISTS users (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   email         TEXT NOT NULL UNIQUE,
+  nickname      TEXT NOT NULL DEFAULT '',
   pass_hash     TEXT NOT NULL,
   balance       INTEGER NOT NULL DEFAULT 0,
   status        TEXT NOT NULL DEFAULT 'active',
@@ -79,6 +80,7 @@ impl DbError {
 pub struct User {
     pub id: i64,
     pub email: String,
+    pub nickname: String,
     pub balance: i64,
     pub status: String,
 }
@@ -108,6 +110,15 @@ impl Db {
         // WAL：后台脚本（python）和应用同时读写不会互相锁死
         conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA busy_timeout=5000;")?;
         conn.execute_batch(SCHEMA)?;
+        // 老库补列：CREATE TABLE IF NOT EXISTS 不会给已存在的表加字段
+        let has_nickname: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('users') WHERE name = 'nickname'",
+            [],
+            |r| r.get(0),
+        )?;
+        if has_nickname == 0 {
+            conn.execute("ALTER TABLE users ADD COLUMN nickname TEXT NOT NULL DEFAULT ''", [])?;
+        }
         Ok(Self { conn: Mutex::new(conn) })
     }
 
@@ -144,9 +155,10 @@ impl Db {
             return Err(DbError::Msg("这个邮箱已经注册过了，直接登录即可".into()));
         }
 
+        let nickname: String = email.split('@').next().unwrap_or(email).chars().take(20).collect();
         tx.execute(
-            "INSERT INTO users (email, pass_hash, balance, created_at) VALUES (?1, ?2, ?3, ?4)",
-            params![email, pass_hash, quota, now],
+            "INSERT INTO users (email, nickname, pass_hash, balance, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![email, nickname, pass_hash, quota, now],
         )?;
         let uid = tx.last_insert_rowid();
         tx.execute(
@@ -159,15 +171,22 @@ impl Db {
         )?;
         tx.commit()?;
 
-        Ok(User { id: uid, email: email.to_string(), balance: quota, status: "active".into() })
+        Ok(User {
+            id: uid,
+            email: email.to_string(),
+            nickname,
+            balance: quota,
+            status: "active".into(),
+        })
     }
 
-    pub fn find_login(&self, email: &str) -> Option<(i64, String, String, i64)> {
+    /// 登录校验用：(id, 密码哈希, 状态, 余额, 昵称)
+    pub fn find_login(&self, email: &str) -> Option<(i64, String, String, i64, String)> {
         let c = self.conn.lock().unwrap();
         c.query_row(
-            "SELECT id, pass_hash, status, balance FROM users WHERE email = ?1",
+            "SELECT id, pass_hash, status, balance, nickname FROM users WHERE email = ?1",
             params![email],
-            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
         )
         .optional()
         .ok()
@@ -187,7 +206,7 @@ impl Db {
     pub fn user_by_token(&self, token: &str) -> Option<User> {
         let c = self.conn.lock().unwrap();
         c.query_row(
-            "SELECT u.id, u.email, u.balance, u.status
+            "SELECT u.id, u.email, u.nickname, u.balance, u.status
                FROM sessions s JOIN users u ON u.id = s.user_id
               WHERE s.token = ?1 AND s.expires_at > ?2",
             params![token, now_str()],
@@ -195,8 +214,9 @@ impl Db {
                 Ok(User {
                     id: r.get(0)?,
                     email: r.get(1)?,
-                    balance: r.get(2)?,
-                    status: r.get(3)?,
+                    nickname: r.get(2)?,
+                    balance: r.get(3)?,
+                    status: r.get(4)?,
                 })
             },
         )
@@ -354,6 +374,7 @@ pub struct Overview {
 pub struct UserRow {
     pub id: i64,
     pub email: String,
+    pub nickname: String,
     pub balance: i64,
     pub status: String,
     pub created_at: String,
@@ -371,6 +392,14 @@ pub struct CodeRow {
     pub expire_at: String,
     pub created_at: String,
     pub used: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrendPoint {
+    pub date: String,
+    pub calls: i64,
+    pub users: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -408,11 +437,11 @@ impl Db {
         let like = format!("%{}%", q.trim());
         let mut stmt = c
             .prepare(
-                "SELECT u.id, u.email, u.balance, u.status, u.created_at,
+                "SELECT u.id, u.email, u.nickname, u.balance, u.status, u.created_at,
                         COALESCE(u.last_login_at,''),
                         COALESCE((SELECT SUM(cost) FROM usage_log l WHERE l.user_id = u.id AND l.cost > 0), 0)
                    FROM users u
-                  WHERE (?1 = '%%' OR u.email LIKE ?1)
+                  WHERE (?1 = '%%' OR u.email LIKE ?1 OR u.nickname LIKE ?1)
                   ORDER BY u.id DESC LIMIT ?2 OFFSET ?3",
             )
             .unwrap();
@@ -420,11 +449,12 @@ impl Db {
             Ok(UserRow {
                 id: r.get(0)?,
                 email: r.get(1)?,
-                balance: r.get(2)?,
-                status: r.get(3)?,
-                created_at: r.get(4)?,
-                last_login_at: r.get(5)?,
-                spent: r.get(6)?,
+                nickname: r.get(2)?,
+                balance: r.get(3)?,
+                status: r.get(4)?,
+                created_at: r.get(5)?,
+                last_login_at: r.get(6)?,
+                spent: r.get(7)?,
             })
         })
         .map(|it| it.filter_map(|x| x.ok()).collect())
@@ -434,7 +464,11 @@ impl Db {
     pub fn count_users(&self, q: &str) -> i64 {
         let c = self.conn.lock().unwrap();
         let like = format!("%{}%", q.trim());
-        c.query_row("SELECT COUNT(*) FROM users WHERE ?1 = '%%' OR email LIKE ?1", params![like], |r| r.get(0))
+        c.query_row(
+            "SELECT COUNT(*) FROM users WHERE ?1 = '%%' OR email LIKE ?1 OR nickname LIKE ?1",
+            params![like],
+            |r| r.get(0),
+        )
             .unwrap_or(0)
     }
 
@@ -460,6 +494,38 @@ impl Db {
         )?;
         tx.commit()?;
         Ok((mail, after))
+    }
+
+    pub fn set_nickname(&self, user_id: i64, nickname: &str) -> Result<(), DbError> {
+        let c = self.conn.lock().unwrap();
+        c.execute("UPDATE users SET nickname = ?1 WHERE id = ?2", params![nickname, user_id])?;
+        Ok(())
+    }
+
+    /// 近 N 天趋势：每天调用次数 + 新增用户数（没有记录的日子补 0）
+    pub fn trend(&self, days: i64) -> Vec<TrendPoint> {
+        let c = self.conn.lock().unwrap();
+        let mut out = Vec::new();
+        let today = chrono::Local::now();
+        for i in (0..days).rev() {
+            let d = (today - chrono::Duration::days(i)).format("%Y-%m-%d").to_string();
+            let calls: i64 = c
+                .query_row(
+                    "SELECT COUNT(*) FROM usage_log WHERE cost > 0 AND substr(created_at,1,10) = ?1",
+                    params![d],
+                    |r| r.get(0),
+                )
+                .unwrap_or(0);
+            let users: i64 = c
+                .query_row(
+                    "SELECT COUNT(*) FROM users WHERE substr(created_at,1,10) = ?1",
+                    params![d],
+                    |r| r.get(0),
+                )
+                .unwrap_or(0);
+            out.push(TrendPoint { date: d, calls, users });
+        }
+        out
     }
 
     pub fn set_status(&self, email: &str, status: &str) -> Result<(), DbError> {
@@ -530,16 +596,18 @@ impl Db {
         }
     }
 
-    pub fn recent_usage(&self, limit: i64) -> Vec<UsageRow> {
+    pub fn recent_usage(&self, limit: i64, q: &str) -> Vec<UsageRow> {
         let c = self.conn.lock().unwrap();
+        let like = format!("%{}%", q.trim());
         let mut stmt = c
             .prepare(
                 "SELECT COALESCE(u.email,'-'), l.kind, l.cost, l.balance_after, l.created_at
                    FROM usage_log l LEFT JOIN users u ON u.id = l.user_id
+                  WHERE (?2 = '%%' OR u.email LIKE ?2 OR u.nickname LIKE ?2)
                   ORDER BY l.id DESC LIMIT ?1",
             )
             .unwrap();
-        stmt.query_map(params![limit], |r| {
+        stmt.query_map(params![limit, like], |r| {
             Ok(UsageRow {
                 email: r.get(0)?,
                 kind: r.get(1)?,
