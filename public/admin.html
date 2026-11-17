@@ -213,11 +213,12 @@ async function loadOverview() {
   const d = r.data;
   const cards = [
     ['注册用户', d.users, '人'],
-    ['今日新增', d.new_today, '人'],
-    ['近 7 日活跃', d.active_7d, '人'],
-    ['邀请码', d.codes_used + ' / ' + d.codes_total, '已用/总数'],
-    ['今日调用', d.calls_today, '次'],
-    ['未消耗额度', d.balance_sum, '次'],
+    ['今日新增', d.newToday, '人'],
+    ['近 7 日活跃', d.active7d, '人'],
+    ['邀请码', d.codesUsed + ' / ' + d.codesTotal, '已用/总数'],
+    ['今日调用', d.callsToday, '次'],
+    ['未消耗额度', d.balanceSum, '次'],
+    ['累计消耗额度', d.costTotal, '次'],
   ];
   $('statGrid').innerHTML = cards.map(([k, v, u]) =>
     '<div class="stat"><div class="k">' + k + '</div><div class="v">' + v +
