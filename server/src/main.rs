@@ -206,22 +206,23 @@ fn json_err(code: StatusCode, msg: &str) -> Response {
         .into_response()
 }
 
-fn require_user(st: &AppState, headers: &HeaderMap) -> Result<db::User, Response> {
+/// 只返回一句人话，由调用方决定 HTTP 状态码。
+/// （被封禁和未登录要分开提示，否则用户会一直去登录）
+fn require_user(st: &AppState, headers: &HeaderMap) -> Result<db::User, String> {
     let Some(tok) = cookie_token(headers) else {
-        return Err(json_err(StatusCode::UNAUTHORIZED, "请先登录"));
+        return Err("请先登录后再用（右上角登录 / 注册）".into());
     };
     match st.db.user_by_token(&tok) {
         Some(u) if u.status == "active" => Ok(u),
-        Some(_) => Err(json_err(StatusCode::FORBIDDEN, "账号已被停用")),
-        None => Err(json_err(StatusCode::UNAUTHORIZED, "登录已过期，请重新登录")),
+        Some(_) => Err("账号已被停用，请联系管理员".into()),
+        None => Err("登录已过期，请重新登录".into()),
     }
 }
 
 /// 开工前只「查」额度，不扣。
 /// 之前是先扣再干活，解析失败也照样扣，用户会骂人。
 fn ensure_quota(st: &AppState, headers: &HeaderMap, kind: &str) -> Result<db::User, String> {
-    let user = require_user(st, headers)
-        .map_err(|_| "请先登录后再用（右上角登录 / 注册）".to_string())?;
+    let user = require_user(st, headers)?;
     let cost = quota_cost(kind);
     let bal = st.db.balance(user.id);
     if bal < cost {
@@ -419,7 +420,7 @@ async fn auth_redeem(
 ) -> Response {
     let user = match require_user(&st, &headers) {
         Ok(u) => u,
-        Err(e) => return e,
+        Err(msg) => return json_err(StatusCode::UNAUTHORIZED, &msg),
     };
     let code = req.code.trim().to_uppercase();
     if code.is_empty() {
