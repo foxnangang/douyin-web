@@ -130,6 +130,10 @@ tr:hover td{background:#fafbf9}
           <svg viewBox="0 0 24 24"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h10"/></svg>
           用量流水
         </div>
+        <div class="mi" data-tab="settings">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 7 19.4a1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3 14V14a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 7a1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 3V3a2 2 0 1 1 4 0v.1A1.7 1.7 0 0 0 16.9 4.6a1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.7 1.7 0 0 0 21 10h.1a2 2 0 1 1 0 4H21a1.7 1.7 0 0 0-1.6 1z"/></svg>
+          设置
+        </div>
       </nav>
       <div class="side-foot">
         <button class="ghost sm" id="btnLogout">退出登录</button>
@@ -191,6 +195,27 @@ tr:hover td{background:#fafbf9}
       <section id="tab-usage" class="hidden">
         <div class="card"><div class="tbl-wrap"><table id="usageTbl"></table></div></div>
       </section>
+
+      <section id="tab-settings" class="hidden">
+        <div class="card" style="max-width:460px">
+          <b style="font-size:14px">修改管理密码</b>
+          <p style="font-size:12.5px;color:var(--ink3);margin:6px 0 14px;line-height:1.7">
+            改完立即生效，当前登录状态不会掉。密码以 argon2 哈希存在数据库里，不再依赖环境变量。
+          </p>
+          <input id="pwOld" type="password" placeholder="当前密码" style="width:100%;margin-bottom:9px">
+          <input id="pwNew" type="password" placeholder="新密码（至少 8 位）" style="width:100%;margin-bottom:9px">
+          <input id="pwNew2" type="password" placeholder="再输一次新密码" style="width:100%;margin-bottom:12px">
+          <button id="btnPwdSave">保存新密码</button>
+          <div id="pwdMsg" style="font-size:12.5px;margin-top:10px;min-height:18px"></div>
+        </div>
+        <div class="card" style="max-width:460px">
+          <b style="font-size:14px">其它</b>
+          <p style="font-size:12.5px;color:var(--ink3);margin:6px 0 0;line-height:1.8">
+            忘记密码时可以登录服务器执行：<br>
+            <code style="font-size:12px;background:#f4f5f3;padding:2px 6px;border-radius:4px">python3 admin.py reset-admin-password</code>
+          </p>
+        </div>
+      </section>
     </main>
   </div>
 </div>
@@ -204,6 +229,7 @@ const PAGE_META = {
   users: ['用户', '改额度、封禁、重置密码'],
   codes: ['邀请码', '发码、查看状态、删除未使用的码'],
   usage: ['用量流水', '最近 200 条扣费记录'],
+  settings: ['设置', '管理密码与后台配置'],
 };
 
 async function api(path, body) {
@@ -252,7 +278,7 @@ document.querySelectorAll('.mi').forEach(m => {
     document.querySelectorAll('.mi').forEach(x => x.classList.remove('on'));
     m.classList.add('on');
     curTab = m.dataset.tab;
-    ['overview', 'users', 'codes', 'usage'].forEach(k => {
+    ['overview', 'users', 'codes', 'usage', 'settings'].forEach(k => {
       $('tab-' + k).classList.toggle('hidden', k !== curTab);
     });
     const meta = PAGE_META[curTab] || ['', ''];
@@ -426,6 +452,23 @@ function renderUsage(tbl, rows) {
       + '<td>' + u.balanceAfter + '</td>'
       + '</tr>').join('');
 }
+
+/* ---------- 设置 ---------- */
+$('btnPwdSave').onclick = async () => {
+  const oldPw = $('pwOld').value;
+  const nw = $('pwNew').value;
+  const nw2 = $('pwNew2').value;
+  const msg = $('pwdMsg');
+  msg.style.color = 'var(--danger)';
+  if (!oldPw || !nw) { msg.textContent = '三个框都要填'; return; }
+  if (nw.length < 8) { msg.textContent = '新密码至少 8 位'; return; }
+  if (nw !== nw2) { msg.textContent = '两次输入的新密码不一致'; return; }
+  const r = await api('/api/admin/password', { old: oldPw, new: nw });
+  if (!r.ok) { msg.textContent = r.error || '保存失败'; return; }
+  msg.style.color = 'var(--brand)';
+  msg.textContent = '已保存，下次用新密码登录';
+  $('pwOld').value = ''; $('pwNew').value = ''; $('pwNew2').value = '';
+};
 
 /* 启动：先探一下有没有登录态 */
 (async () => {

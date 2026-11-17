@@ -1344,8 +1344,17 @@ async fn ai_rewrite(
 
 // ---------- 管理后台 ----------
 
-fn admin_password() -> String {
-    std::env::var("ADMIN_PASSWORD").unwrap_or_default()
+/// 后台密码校验：优先用库里存的新密码（argon2 哈希），
+/// 没改过则回落到环境变量 ADMIN_PASSWORD（明文，兼容首次部署）。
+fn check_admin_password(st: &AppState, input: &str) -> Option<bool> {
+    if let Some(hash) = st.db.get_setting("admin_password_hash") {
+        return Some(verify_password(input, &hash));
+    }
+    let env_pw = std::env::var("ADMIN_PASSWORD").unwrap_or_default();
+    if env_pw.is_empty() {
+        return None; // 完全没配置，禁用后台
+    }
+    Some(input == env_pw)
 }
 
 fn admin_ok(st: &AppState, headers: &HeaderMap) -> bool {
@@ -1387,8 +1396,12 @@ async fn admin_login(
     headers: HeaderMap,
     Json(req): Json<AdminLoginReq>,
 ) -> Response {
-    let pw = admin_password();
-    if pw.is_empty() {
+    if st
+        .db
+        .get_setting("admin_password_hash")
+        .is_none()
+        && std::env::var("ADMIN_PASSWORD").unwrap_or_default().is_empty()
+    {
         return json_err(StatusCode::FORBIDDEN, "后台未启用：先在 PM2 环境里设置 ADMIN_PASSWORD");
     }
 
@@ -1404,7 +1417,7 @@ async fn admin_login(
         if e.1 >= 10 {
             return json_err(StatusCode::TOO_MANY_REQUESTS, "尝试太多次，五分钟后再来");
         }
-        if req.password != pw {
+        if check_admin_password(&st, &req.password) != Some(true) {
             e.1 += 1;
             return json_err(StatusCode::UNAUTHORIZED, "密码不对");
         }
@@ -1445,6 +1458,45 @@ async fn admin_logout(State(st): State<AppState>, headers: HeaderMap) -> Respons
         h.insert(header::SET_COOKIE, v);
     }
     (h, Json(serde_json::json!({ "ok": true }))).into_response()
+}
+
+#[derive(Debug, Deserialize)]
+struct AdminPwdChangeReq {
+    old: String,
+    new: String,
+}
+
+/// 改后台密码：校验旧密码 → 存 argon2 哈希 → 立即生效（当前会话保留）
+async fn admin_password_change(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<AdminPwdChangeReq>,
+) -> Response {
+    if let Some(r) = admin_guard(&st, &headers) {
+        return r;
+    }
+    match check_admin_password(&st, &req.old) {
+        Some(true) => {}
+        Some(false) => return json_err(StatusCode::BAD_REQUEST, "当前密码不对"),
+        None => return json_err(StatusCode::BAD_REQUEST, "后台未启用密码，请先设置 ADMIN_PASSWORD"),
+    }
+    if req.new.chars().count() < 8 {
+        return json_err(StatusCode::BAD_REQUEST, "新密码至少 8 位");
+    }
+    if req.new == req.old {
+        return json_err(StatusCode::BAD_REQUEST, "新密码和当前密码一样");
+    }
+    let hash = match hash_password(&req.new) {
+        Ok(h) => h,
+        Err(e) => return json_err(StatusCode::INTERNAL_SERVER_ERROR, &e),
+    };
+    match st.db.set_setting("admin_password_hash", &hash) {
+        Ok(()) => {
+            tracing::info!("admin password changed");
+            Json(serde_json::json!({ "ok": true })).into_response()
+        }
+        Err(e) => json_err(StatusCode::INTERNAL_SERVER_ERROR, &e.text()),
+    }
 }
 
 async fn admin_overview(State(st): State<AppState>, headers: HeaderMap) -> Response {
@@ -1722,6 +1774,7 @@ async fn main() {
         .route("/internal/issue-code", post(issue_code_internal))
         .route("/api/admin/login", post(admin_login))
         .route("/api/admin/logout", post(admin_logout))
+        .route("/api/admin/password", post(admin_password_change))
         .route("/api/admin/overview", get(admin_overview))
         .route("/api/admin/users", get(admin_users))
         .route("/api/admin/user/adjust", post(admin_user_adjust))

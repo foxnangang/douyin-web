@@ -44,6 +44,11 @@ CREATE TABLE IF NOT EXISTS usage_log (
   balance_after INTEGER NOT NULL,
   created_at    TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS settings (
+  k          TEXT PRIMARY KEY,
+  v          TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_usage_user ON usage_log(user_id, created_at);
 "#;
@@ -296,6 +301,24 @@ impl Db {
             }
         }
         Err(DbError::Msg("生成邀请码失败，请重试".into()))
+    }
+
+    pub fn get_setting(&self, key: &str) -> Option<String> {
+        let c = self.conn.lock().unwrap();
+        c.query_row("SELECT v FROM settings WHERE k = ?1", params![key], |r| r.get(0))
+            .optional()
+            .ok()
+            .flatten()
+    }
+
+    pub fn set_setting(&self, key: &str, value: &str) -> Result<(), DbError> {
+        let c = self.conn.lock().unwrap();
+        c.execute(
+            "INSERT INTO settings (k, v, updated_at) VALUES (?1, ?2, ?3)
+             ON CONFLICT(k) DO UPDATE SET v = excluded.v, updated_at = excluded.updated_at",
+            params![key, value, now_str()],
+        )?;
+        Ok(())
     }
 
     pub fn code_by_order(&self, order_id: &str) -> Option<String> {

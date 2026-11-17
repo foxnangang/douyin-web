@@ -134,6 +134,18 @@ def cmd_stats(args):
         print(f"  {ts}  {email or '-':30s} {kind:12s} -{cost:<4d} 余 {after}")
 
 
+def cmd_reset_admin(args):
+    """忘记管理密码时用：清掉库里自定义的密码，回落到环境变量 ADMIN_PASSWORD。"""
+    c = conn()
+    n = c.execute("DELETE FROM settings WHERE k = 'admin_password_hash'").rowcount
+    c.commit()
+    if n:
+        print("已清除自定义管理密码 → 后台密码回到 ADMIN_PASSWORD 环境变量的值")
+        print("（该值同时存在 /www/wwwroot/dy.foxnan.com/.admin_password）")
+    else:
+        print("库里没有自定义密码，本来就用的 ADMIN_PASSWORD 环境变量")
+
+
 def main():
     ap = argparse.ArgumentParser(description="dy.foxnan.com 后台管理")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -166,6 +178,9 @@ def main():
 
     st = sub.add_parser("stats")
     st.set_defaults(func=cmd_stats)
+
+    ra = sub.add_parser("reset-admin-password", help="忘记后台密码时清除自定义密码")
+    ra.set_defaults(func=cmd_reset_admin)
 
     args = ap.parse_args()
     args.func(args)
