@@ -3,160 +3,324 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>抖音作品解析 · 在线工具</title>
+<title>视频去水印 · 视频创作者一站式工具箱</title>
+<meta name="description" content="视频去水印、图集下载、文案配音、AI 改写，一个页面搞定短视频创作的琐事。">
 <style>
 :root{
-  --primary:#3e7a6a;--primary-d:#316254;--primary-l:#eef5f2;
-  --accent:#b08d57;--canvas:#f4f5f1;--surface:#fff;
-  --text:#2c3531;--regular:#5a655f;--muted:#8a948e;
-  --border:#e1e5df;--border-l:#eef0eb;--danger:#c25b52;
-  --radius:10px;font-family:Inter,'HarmonyOS Sans SC','Source Han Sans SC','PingFang SC','Microsoft YaHei',sans-serif;
+  --brand:#2f6b5b;--brand-d:#255546;--brand-l:#eef4f1;--brand-line:#d8e7e1;
+  --gold:#b08d57;
+  --bg:#f5f6f4;--card:#fff;--ink:#1f2523;--ink2:#5b6663;--ink3:#939c96;
+  --line:#e6e9e4;--danger:#c25b52;--radius:14px;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','HarmonyOS Sans SC','PingFang SC','Microsoft YaHei',sans-serif;
 }
 *{box-sizing:border-box}
-body{margin:0;background:var(--canvas);color:var(--text);font-size:14px;line-height:1.6}
-.top{background:var(--surface);border-bottom:1px solid var(--border);padding:16px 0}
-.wrap{max-width:960px;margin:0 auto;padding:0 20px}
-.brand{display:flex;align-items:center;gap:12px}
-.mark{width:34px;height:34px;border-radius:9px;background:var(--primary);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:16px}
-.brand h1{margin:0;font-size:17px;font-weight:600;letter-spacing:.3px}
-.brand .tag{font-size:11px;color:var(--accent);border:1px solid var(--accent);border-radius:20px;padding:1px 9px;margin-left:6px}
-.brand p{margin:1px 0 0;font-size:12px;color:var(--muted)}
-main{padding:22px 0 60px}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px;box-shadow:0 1px 3px rgba(44,53,49,.04)}
-.card h2{margin:0 0 4px;font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px}
-.card h2 .n{width:22px;height:22px;border-radius:6px;background:var(--primary-l);color:var(--primary);font-size:12px;display:flex;align-items:center;justify-content:center}
-.hint{font-size:12px;color:var(--muted);margin:0 0 14px}
-.row{display:flex;gap:10px;align-items:stretch;flex-wrap:wrap}
-input,select,textarea{flex:1;min-width:180px;padding:9px 12px;border:1px solid var(--border);border-radius:7px;font-size:13px;font-family:inherit;color:var(--text);background:var(--surface);outline:none;transition:border-color .15s}
-input:focus,textarea:focus,select:focus{border-color:var(--primary)}
-textarea{width:100%;min-height:74px;resize:vertical;flex:none;font-size:12px}
-button{padding:9px 18px;border:none;border-radius:7px;background:var(--primary);color:#fff;font-size:13px;font-family:inherit;cursor:pointer;white-space:nowrap;transition:background .15s,box-shadow .15s}
-button:hover{background:var(--primary-d);box-shadow:0 3px 10px rgba(62,122,106,.22)}
-button:disabled{opacity:.5;cursor:not-allowed;box-shadow:none}
-button.ghost{background:var(--surface);color:var(--primary);border:1px solid var(--border)}
-button.ghost:hover{border-color:var(--primary);background:var(--primary-l)}
-.tabs{display:flex;gap:6px;margin-bottom:14px;border-bottom:1px solid var(--border-l)}
-.tab{padding:8px 14px;cursor:pointer;font-size:13px;color:var(--regular);border-bottom:2px solid transparent;margin-bottom:-1px}
-.tab.on{color:var(--primary);border-bottom-color:var(--primary);font-weight:500}
-.panel{display:none}.panel.on{display:block}
-.msg{margin-top:12px;padding:9px 12px;border-radius:7px;font-size:12.5px;display:none}
-.msg.err{display:block;background:#fcf0ee;color:var(--danger);border:1px solid #f5d9d5}
-.msg.ok{display:block;background:var(--primary-l);color:var(--primary-d);border:1px solid #d6e8e1}
-.status{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);margin-top:10px}
-.dot{width:7px;height:7px;border-radius:50%;background:var(--muted)}
-.dot.ok{background:var(--primary)}.dot.bad{background:var(--danger)}
-.results{margin-top:16px}
-.res-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;font-size:13px;color:var(--regular)}
-.res-head b{color:var(--text)}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
-.item{border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--surface)}
-.thumb{height:150px;background:#eef0eb;overflow:hidden;position:relative}
-.thumb .ph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#c4cfc8;font-size:15px;letter-spacing:1px}
-.thumb img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:transform .25s}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-size:15px;line-height:1.65;-webkit-font-smoothing:antialiased}
+.wrap{max-width:900px;margin:0 auto;padding:0 18px}
+
+/* ---------- 顶部 ---------- */
+header{padding:26px 0 18px}
+.brand{display:flex;align-items:center;gap:13px}
+.mark{width:40px;height:40px;border-radius:12px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:600;box-shadow:0 4px 14px rgba(47,107,91,.25)}
+.brand h1{margin:0;font-size:21px;font-weight:600;letter-spacing:.2px}
+.brand .sub{margin:1px 0 0;font-size:12.5px;color:var(--ink3);letter-spacing:.4px}
+.brand .dot-sep{color:var(--brand-line);margin:0 6px}
+
+/* ---------- 工具切换 ---------- */
+.tools{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:6px 0 16px}
+.tool{display:flex;flex-direction:column;align-items:center;gap:5px;padding:11px 6px;background:var(--card);
+  border:1px solid var(--line);border-radius:12px;cursor:pointer;transition:.16s;color:var(--ink2);font-size:13px}
+.tool svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.tool:hover{border-color:var(--brand-line);color:var(--brand)}
+.tool.on{background:var(--brand);border-color:var(--brand);color:#fff;box-shadow:0 6px 16px rgba(47,107,91,.22)}
+.tool.on:hover{color:#fff}
+
+/* ---------- 卡片 ---------- */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:20px;margin-bottom:14px}
+.card-h{display:flex;align-items:baseline;gap:9px;margin-bottom:4px}
+.card-h h2{margin:0;font-size:15.5px;font-weight:600}
+.card-h .badge{font-size:11px;color:var(--brand);background:var(--brand-l);border-radius:20px;padding:1px 8px}
+.hint{margin:0 0 14px;font-size:12.5px;color:var(--ink3)}
+
+/* ---------- 表单 ---------- */
+.field{display:flex;gap:9px;align-items:stretch;flex-wrap:wrap}
+input[type=text],textarea,select{
+  width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:10px;background:#fbfcfa;
+  font-size:14px;font-family:inherit;color:var(--ink);outline:none;transition:.15s}
+input[type=text]:focus,textarea:focus,select:focus{border-color:var(--brand);background:#fff;box-shadow:0 0 0 3px rgba(47,107,91,.08)}
+textarea{resize:vertical;min-height:88px;line-height:1.7}
+.field input[type=text]{flex:1;min-width:200px}
+button{font-family:inherit;font-size:14px;cursor:pointer;border:none;border-radius:10px;padding:11px 20px;
+  background:var(--brand);color:#fff;transition:.16s;white-space:nowrap;font-weight:500}
+button:hover{background:var(--brand-d);box-shadow:0 6px 16px rgba(47,107,91,.2)}
+button:disabled{opacity:.55;cursor:not-allowed;box-shadow:none}
+button.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand-line)}
+button.ghost:hover{background:var(--brand-l);box-shadow:none}
+button.soft{background:var(--brand-l);color:var(--brand-d);border:1px solid var(--brand-line)}
+button.soft:hover{background:var(--brand);color:#fff}
+button.sm{padding:7px 13px;font-size:12.5px;border-radius:8px}
+
+/* 平台标签 */
+.platforms{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
+.pf{font-size:11.5px;color:var(--ink3);border:1px solid var(--line);border-radius:6px;padding:2px 8px;background:#fafbf9}
+.pf.hot{color:var(--brand);border-color:var(--brand-line);background:var(--brand-l)}
+
+/* ---------- 提示条 ---------- */
+.msg{display:none;margin-top:12px;padding:10px 13px;border-radius:10px;font-size:13px}
+.msg.err{display:block;background:#fdf1ef;color:var(--danger);border:1px solid #f3d9d5}
+.msg.ok{display:block;background:var(--brand-l);color:var(--brand-d);border:1px solid var(--brand-line)}
+
+/* ---------- 结果 ---------- */
+.res-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:13px}
+.res-head .t{font-size:14px}
+.res-head .t b{font-weight:600}
+.res-head .t span{color:var(--ink3);font-size:12.5px}
+.res-acts{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+.item{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff;transition:.18s}
+.item:hover{border-color:var(--brand-line);box-shadow:0 6px 18px rgba(31,37,35,.07)}
+.thumb{position:relative;height:158px;background:#eef0ec;overflow:hidden}
+.thumb .ph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#c3cbc6;font-size:13px}
+.thumb img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:transform .3s}
 .item:hover .thumb img{transform:scale(1.04)}
-.thumb .kind{position:absolute;top:8px;left:8px;font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(0,0,0,.6);color:#fff;z-index:2}
-.thumb .play{position:absolute;right:8px;bottom:8px;width:26px;height:26px;border-radius:50%;background:rgba(0,0,0,.45);color:#fff;font-size:11px;display:flex;align-items:center;justify-content:center;z-index:2;pointer-events:none}
-.thumb.media{cursor:pointer}
-.item .body{padding:10px 12px}
-.item .desc{font-size:12.5px;line-height:1.5;max-height:38px;overflow:hidden;margin-bottom:8px}
-.item .meta{font-size:11px;color:var(--muted);margin-bottom:9px}
-.item .acts{display:flex;gap:7px}
-.item .acts a,.item .acts button{flex:1;text-align:center;padding:6px 8px;font-size:11.5px;text-decoration:none;border-radius:6px;background:var(--primary-l);color:var(--primary-d);border:1px solid #d6e8e1;cursor:pointer}
-.item .acts a:hover,.item .acts button:hover{background:var(--primary);color:#fff;border-color:var(--primary)}
-.empty{text-align:center;color:var(--muted);padding:44px 0;font-size:13px}
-.foot{text-align:center;font-size:11.5px;color:var(--muted);padding:16px 0 30px;line-height:1.8}
-.foot a{color:var(--primary);text-decoration:none;border-bottom:1px solid var(--primary-light-7, #c3d8d0);padding-bottom:1px}
-.foot a:hover{color:var(--primary-d);border-bottom-color:var(--primary-d)}
-code{background:var(--canvas);padding:1px 5px;border-radius:4px;font-size:11px;color:var(--regular)}
-.spinner{display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px;margin-right:5px}
+.thumb .kind{position:absolute;top:9px;left:9px;z-index:2;font-size:10.5px;padding:2px 7px;border-radius:5px;background:rgba(20,25,23,.62);color:#fff}
+.thumb .play{position:absolute;right:9px;bottom:9px;z-index:2;width:26px;height:26px;border-radius:50%;background:rgba(20,25,23,.45);color:#fff;font-size:10px;display:flex;align-items:center;justify-content:center}
+.thumb.clickable{cursor:pointer}
+.item .bd{padding:11px 13px 13px}
+.item .ds{font-size:13px;line-height:1.55;height:40px;overflow:hidden;margin-bottom:6px}
+.item .mt{font-size:11.5px;color:var(--ink3);margin-bottom:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .ac{display:flex;gap:6px}
+.item .ac a,.item .ac button{flex:1;text-align:center;padding:7px 6px;font-size:12px;border-radius:8px;text-decoration:none;
+  background:var(--brand-l);color:var(--brand-d);border:1px solid var(--brand-line);cursor:pointer;transition:.15s}
+.item .ac a:hover,.item .ac button:hover{background:var(--brand);color:#fff;border-color:var(--brand)}
+
+/* ---------- 语音 ---------- */
+.voice-row{display:grid;grid-template-columns:1fr 150px;gap:9px}
+.audio-box{display:none;margin-top:13px;padding:12px;border:1px solid var(--brand-line);background:var(--brand-l);border-radius:10px}
+.audio-box audio{width:100%;margin-bottom:9px}
+.rate-wrap{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--ink2);margin-top:10px}
+.rate-wrap input[type=range]{flex:1;accent-color:var(--brand)}
+
+/* ---------- AI ---------- */
+.modes{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:11px}
+.mode{font-size:12.5px;padding:6px 12px;border-radius:20px;border:1px solid var(--line);background:#fafbf9;color:var(--ink2);cursor:pointer;transition:.15s}
+.mode.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.out{display:none;margin-top:13px;padding:14px;background:#fbfcfa;border:1px solid var(--line);border-radius:10px;white-space:pre-wrap;font-size:13.5px;line-height:1.8;cursor:pointer}
+.out.show{display:block}
+
+/* ---------- 其它 ---------- */
+details{margin-top:14px;border-top:1px dashed var(--line);padding-top:13px}
+summary{cursor:pointer;font-size:12.5px;color:var(--ink3);outline:none}
+summary:hover{color:var(--brand)}
+details .inner{margin-top:11px}
+.row-inline{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+.spinner{display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;
+  border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px;margin-right:6px}
 @keyframes sp{to{transform:rotate(360deg)}}
+footer{text-align:center;font-size:12px;color:var(--ink3);padding:22px 0 40px;line-height:1.9}
+footer a{color:var(--brand);text-decoration:none}
+footer a:hover{text-decoration:underline}
+.panel{display:none}.panel.on{display:block}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--ink3);display:inline-block}
+.dot.ok{background:var(--brand)}.dot.bad{background:var(--danger)}
+@media(max-width:560px){
+  .tools{gap:6px}
+  .tool{font-size:11.5px;padding:9px 2px}
+  .tool svg{width:17px;height:17px}
+  .brand h1{font-size:18px}
+  .card{padding:16px;border-radius:12px}
+  .voice-row{grid-template-columns:1fr}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+  .thumb{height:130px}
+}
 </style>
 </head>
 <body>
-<div class="top"><div class="wrap">
+<header><div class="wrap">
   <div class="brand">
     <div class="mark">抖</div>
-    <div><h1>抖音作品解析<span class="tag">在线工具</span></h1><p>粘贴链接提取无水印直链 · 支持主页 / 点赞批量解析</p></div>
+    <div>
+      <h1>视频去水印</h1>
+      <p class="sub">视频创作者一站式工具箱<span class="dot-sep">·</span>解析下载 / 配音 / AI 改写</p>
+    </div>
   </div>
-</div></div>
+</div></header>
 
 <main class="wrap">
-  <div class="card">
-    <h2><span class="n">1</span>登录态设置</h2>
-    <p class="hint">解析公开作品可不填 Cookie；点赞 / 收藏等私有内容需要有效的抖音 Cookie。</p>
-    <textarea id="cookie" placeholder="粘贴抖音 Cookie（可选，公开作品留空即可）&#10;从浏览器 F12 → Network → 任意请求 → Request Headers → Cookie 复制整段"></textarea>
-    <div class="row" style="margin-top:10px">
-      <button class="ghost" id="btnCookie">校验 Cookie</button>
-      <div class="status"><span class="dot" id="dotCookie"></span><span id="cookieMsg">未设置</span></div>
+  <nav class="tools">
+    <div class="tool on" data-tool="watermark">
+      <svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M5 21h14"/></svg>
+      去水印
     </div>
-    <div class="msg" id="cookieResult"></div>
-  </div>
+    <div class="tool" data-tool="batch">
+      <svg viewBox="0 0 24 24"><rect x="3" y="5" width="7" height="7" rx="1.5"/><rect x="14" y="5" width="7" height="7" rx="1.5"/><rect x="3" y="15" width="7" height="6" rx="1.5"/><rect x="14" y="15" width="7" height="6" rx="1.5"/></svg>
+      抖音批量
+    </div>
+    <div class="tool" data-tool="tts">
+      <svg viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M16 8.5a5 5 0 0 1 0 7"/><path d="M19 6a9 9 0 0 1 0 12"/></svg>
+      文案配音
+    </div>
+    <div class="tool" data-tool="ai">
+      <svg viewBox="0 0 24 24"><path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M18 16.5 19 19l2.5 1L19 21l-1 2.5L17 21l-2.5-1L17 19z"/></svg>
+      AI 改写
+    </div>
+  </nav>
 
-  <div class="card">
-    <h2><span class="n">2</span>解析作品</h2>
-    <div class="tabs">
-      <div class="tab on" data-mode="quick">免Cookie解析(推荐)</div>
-      <div class="tab" data-mode="single">单作品链接</div>
-      <div class="tab" data-mode="post">主页作品</div>
-      <div class="tab" data-mode="favorite">点赞作品</div>
-    </div>
-    <div class="panel on" id="panel-quick">
-      <p class="hint">粘贴抖音分享短链（v.douyin.com/...），无需 Cookie 直接解析无水印直链。支持 33+ 平台。</p>
-      <div class="row">
-        <input id="urlQuick" placeholder="https://v.douyin.com/xxxxx/">
-        <button id="btnQuick">快速解析</button>
-      </div>
-    </div>
-    <div class="panel" id="panel-single">
-      <p class="hint">粘贴作品页地址（/video/ 或 /note/）或抖音分享短链。</p>
-      <div class="row">
-        <input id="urlSingle" placeholder="https://www.douyin.com/video/123456789...">
-        <button id="btnParse">解析链接</button>
-      </div>
-    </div>
-    <div class="panel" id="panel-post">
-      <p class="hint">粘贴用户主页链接，批量解析其公开作品。</p>
-      <div class="row">
-        <input id="urlPost" placeholder="https://www.douyin.com/user/MS4wLjABAAAA...">
-        <button id="btnFetchPost">批量解析</button>
-      </div>
-    </div>
-    <div class="panel" id="panel-favorite">
-      <p class="hint">解析当前登录账号的点赞作品，需先填上方 Cookie。</p>
-      <div class="row">
-        <input id="urlFavorite" placeholder="留空=解析自己的点赞；也可填他人主页">
-        <button id="btnFetchFav">批量解析</button>
-      </div>
-    </div>
-    <div class="row" style="margin-top:12px;align-items:center">
-      <label style="font-size:12px;color:var(--regular)">最多返回</label>
-      <select id="limit" style="flex:0 0 110px;min-width:0">
-        <option value="50">50 条</option><option value="200" selected>200 条</option>
-        <option value="500">500 条</option><option value="0">全部</option>
-      </select>
-    </div>
-    <div class="msg" id="parseMsg"></div>
-  </div>
-
-  <div class="results" id="results" style="display:none">
+  <!-- 去水印 -->
+  <section class="panel on" id="p-watermark">
     <div class="card">
-      <div class="res-head"><span id="resSummary"></span><button class="ghost" id="btnCopyAll">复制全部直链</button></div>
+      <div class="card-h"><h2>粘贴分享链接</h2><span class="badge">免 Cookie</span></div>
+      <p class="hint">抖音 / 快手 / 小红书 / B站 等 20+ 平台，一个框通用。粘贴后点解析即可拿到无水印原片。</p>
+      <div class="field">
+        <input type="text" id="urlQuick" placeholder="把分享链接粘到这里，比如 https://v.douyin.com/xxxxx/">
+        <button id="btnQuick">解析</button>
+      </div>
+      <div class="platforms">
+        <span class="pf hot">抖音</span><span class="pf hot">快手</span><span class="pf hot">小红书</span>
+        <span class="pf hot">B站</span><span class="pf">微博</span><span class="pf">西瓜视频</span>
+        <span class="pf">微视</span><span class="pf">皮皮虾</span><span class="pf">最右</span>
+        <span class="pf">好看视频</span><span class="pf">虎牙</span><span class="pf">AcFun</span>
+        <span class="pf">腾讯视频</span><span class="pf">搜狐</span><span class="pf">央视网</span>
+        <span class="pf">美拍</span><span class="pf">新片场</span><span class="pf">梨视频</span>
+      </div>
+      <div class="msg" id="quickMsg"></div>
+    </div>
+  </section>
+
+  <!-- 抖音批量 -->
+  <section class="panel" id="p-batch">
+    <div class="card">
+      <div class="card-h"><h2>主页 / 点赞批量解析</h2><span class="badge">需 Cookie</span></div>
+      <p class="hint">贴用户主页链接，一次抓取他的公开作品；也可以抓自己点赞过的作品。</p>
+      <div class="field">
+        <input type="text" id="urlBatch" placeholder="https://www.douyin.com/user/MS4wLjABAAAA...">
+        <select id="batchMode" style="flex:0 0 118px">
+          <option value="post">主页作品</option>
+          <option value="favorite">点赞作品</option>
+        </select>
+        <button id="btnBatch">批量解析</button>
+      </div>
+      <div class="row-inline" style="margin-top:10px">
+        <label style="font-size:12.5px;color:var(--ink3)">最多返回</label>
+        <select id="limit" style="flex:0 0 112px">
+          <option value="50">50 条</option><option value="200" selected>200 条</option>
+          <option value="500">500 条</option><option value="0">全部</option>
+        </select>
+        <span class="dot" id="dotCookie"></span><span style="font-size:12px;color:var(--ink3)" id="cookieMsg">Cookie 未设置</span>
+      </div>
+      <details>
+        <summary>登录态设置（点赞 / 私有内容需要）</summary>
+        <div class="inner">
+          <textarea id="cookie" placeholder="从浏览器 F12 → Network → 任意请求 → Request Headers → Cookie 复制整段"></textarea>
+          <div class="row-inline" style="margin-top:9px">
+            <button class="ghost sm" id="btnCookie">校验 Cookie</button>
+          </div>
+          <div class="msg" id="cookieResult"></div>
+        </div>
+      </details>
+      <div class="msg" id="batchMsg"></div>
+    </div>
+  </section>
+
+  <!-- 配音 -->
+  <section class="panel" id="p-tts">
+    <div class="card">
+      <div class="card-h"><h2>文案配音</h2><span class="badge">在线合成</span></div>
+      <p class="hint">粘贴口播文案，选音色直接生成 MP3，可下载丢进剪映当旁白。</p>
+      <textarea id="ttsText" placeholder="把要念的文字放这里，建议一屏以内，单次最多 2000 字"></textarea>
+      <div class="voice-row" style="margin-top:9px">
+        <select id="ttsVoice"><option value="zh-CN-YunxiNeural">云希 · 男声 年轻自然（推荐）</option></select>
+        <button id="btnTts">生成配音</button>
+      </div>
+      <div class="rate-wrap">
+        <span>语速</span>
+        <input type="range" id="ttsRate" min="-30" max="30" step="5" value="0">
+        <span id="rateLabel" style="width:44px;text-align:right">0%</span>
+      </div>
+      <div class="audio-box" id="audioBox">
+        <audio id="audio" controls preload="none"></audio>
+        <a id="dlAudio" href="#" style="font-size:12.5px;color:var(--brand)">下载 MP3</a>
+      </div>
+      <div class="msg" id="ttsMsg"></div>
+    </div>
+  </section>
+
+  <!-- AI 改写 -->
+  <section class="panel" id="p-ai">
+    <div class="card">
+      <div class="card-h"><h2>AI 改写</h2><span class="badge">口播 / 标题 / 卖点</span></div>
+      <p class="hint">把原片文案丢进来，换个说法、拆成卖点，或直接改成 30 秒口播脚本。</p>
+      <div class="modes">
+        <div class="mode on" data-mode="rewrite">伪原创改写</div>
+        <div class="mode" data-mode="script">30秒口播</div>
+        <div class="mode" data-mode="title">爆款标题</div>
+        <div class="mode" data-mode="selling">提炼卖点</div>
+        <div class="mode" data-mode="summary">要点摘要</div>
+      </div>
+      <textarea id="aiText" placeholder="粘贴要改写的原文（解析出来的视频文案也能直接复制过来）"></textarea>
+      <div class="row-inline" style="margin-top:9px">
+        <button id="btnAi">开始改写</button>
+        <span style="font-size:12px;color:var(--ink3)" id="aiState"></span>
+      </div>
+      <div class="out" id="aiOut"></div>
+      <div class="msg" id="aiMsg"></div>
+    </div>
+  </section>
+
+  <!-- 结果 -->
+  <section id="results" style="display:none">
+    <div class="card">
+      <div class="res-head">
+        <div class="t"><b id="resTitle">作品</b> <span id="resMeta"></span></div>
+        <div class="res-acts">
+          <button class="soft sm" id="btnZip" style="display:none">打包下载图片</button>
+          <button class="ghost sm" id="btnCopyAll">复制全部直链</button>
+        </div>
+      </div>
       <div class="grid" id="grid"></div>
     </div>
-  </div>
+  </section>
 </main>
 
-<div class="foot">
+<footer>
   作品版权归原作者所有，本工具仅提取公开直链，请勿用于侵权用途<br>
-  直链可能随时间失效，建议及时下载<br>
+  直链有时效，拿到后建议尽快下载保存<br>
   <span style="display:inline-block;margin-top:8px">By <a href="https://foxnan.com" target="_blank" rel="noopener">安卿辰博客</a></span>
-</div>
+</footer>
 
 <script>
 const $ = id => document.getElementById(id);
 let allLinks = [];
+let aiMode = 'rewrite';
 
-// Cookie 存浏览器本地，刷新后自动恢复（只存在本机，不上传服务器）
+/* ---------- 工具切换 ---------- */
+document.querySelectorAll('.tool').forEach(t => {
+  t.onclick = () => {
+    document.querySelectorAll('.tool').forEach(x => x.classList.remove('on'));
+    document.querySelectorAll('.panel').forEach(x => x.classList.remove('on'));
+    t.classList.add('on');
+    $('p-' + t.dataset.tool).classList.add('on');
+  };
+});
+
+/* ---------- 通用 ---------- */
+function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+function showMsg(id, text, type) {
+  const el = $(id);
+  if (!text) { el.className = 'msg'; el.textContent = ''; return; }
+  el.className = 'msg ' + type;
+  el.textContent = text;
+}
+function setLoading(btn, on, text) {
+  btn.disabled = on;
+  btn.innerHTML = on ? '<span class="spinner"></span>处理中' : text;
+}
+function coverSrc(u) { return '/api/img?url=' + encodeURIComponent(u); }
+function safeName(s) {
+  return (s || 'douyin').replace(/[\\/:*?"<>|\r\n\t]/g, '_').replace(/\s+/g, ' ').trim().slice(0, 40) || 'douyin';
+}
+
+/* ---------- Cookie 持久化 ---------- */
 const COOKIE_KEY = 'dy_web_cookie';
 try {
   const saved = localStorage.getItem(COOKIE_KEY);
@@ -165,42 +329,13 @@ try {
     $('dotCookie').className = 'dot ok';
     $('cookieMsg').textContent = '已恢复上次的 Cookie';
   }
-} catch (e) { /* 隐私模式下 localStorage 可能不可用，忽略 */ }
+} catch (e) { /* 隐私模式下忽略 */ }
 $('cookie').addEventListener('input', () => {
   try {
     const v = $('cookie').value.trim();
-    if (v) localStorage.setItem(COOKIE_KEY, v);
-    else localStorage.removeItem(COOKIE_KEY);
-  } catch (e) { /* 忽略存储失败 */ }
+    if (v) localStorage.setItem(COOKIE_KEY, v); else localStorage.removeItem(COOKIE_KEY);
+  } catch (e) { /* 忽略 */ }
 });
-
-document.querySelectorAll('.tab').forEach(tab => {
-  tab.onclick = () => {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
-    document.querySelectorAll('.panel').forEach(p => p.classList.remove('on'));
-    tab.classList.add('on');
-    $('panel-' + tab.dataset.mode).classList.add('on');
-  };
-});
-
-function showMsg(id, text, type) {
-  const el = $(id);
-  el.className = 'msg ' + type;
-  el.textContent = text;
-}
-function setLoading(btn, on, text) {
-  btn.disabled = on;
-  btn.innerHTML = on ? '<span class="spinner"></span>处理中…' : text;
-}
-function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
-
-// 缩略图统一走 /api/img 代理：抖音图片 CDN 有 Referer 校验，浏览器直连会 403
-function coverSrc(url) { return '/api/img?url=' + encodeURIComponent(url); }
-
-// 文件名去掉 Windows / macOS 不允许的字符，避免下载时名字乱码或回退成随机串
-function safeName(s) {
-  return (s || 'douyin').replace(/[\\/:*?"<>|\r\n\t]/g, '_').replace(/\s+/g, ' ').trim().slice(0, 40) || 'douyin';
-}
 
 $('btnCookie').onclick = async () => {
   const cookie = $('cookie').value.trim();
@@ -208,8 +343,8 @@ $('btnCookie').onclick = async () => {
   setLoading($('btnCookie'), true, '校验 Cookie');
   try {
     const r = await fetch('/api/cookie/check', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({cookie})
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ cookie })
     }).then(x => x.json());
     if (!r.ok) { showMsg('cookieResult', r.error || '校验失败', 'err'); return; }
     if (r.data.valid) {
@@ -220,116 +355,237 @@ $('btnCookie').onclick = async () => {
     } else {
       $('dotCookie').className = 'dot bad';
       $('cookieMsg').textContent = 'Cookie 无效';
-      showMsg('cookieResult', 'Cookie 无效或已过期，请重新获取', 'err');
+      showMsg('cookieResult', 'Cookie 无效或已过期，请重新复制', 'err');
     }
   } catch (e) {
     showMsg('cookieResult', '请求失败：' + e.message, 'err');
   } finally { setLoading($('btnCookie'), false, '校验 Cookie'); }
 };
 
-async function doQuick(btn) {
-  const url = $('urlQuick').value.trim();
-  if (!url) { showMsg('parseMsg', '请粘贴分享短链', 'err'); return; }
-  setLoading(btn, true, '解析中');
-  showMsg('parseMsg', '', '');
+/* ---------- 解析 ---------- */
+$('btnQuick').onclick = async e => {
+  const btn = e.currentTarget, url = $('urlQuick').value.trim();
+  if (!url) { showMsg('quickMsg', '先把分享链接粘进来', 'err'); return; }
+  setLoading(btn, true, '解析');
+  showMsg('quickMsg', '', '');
   try {
     const r = await fetch('/api/quick-parse?url=' + encodeURIComponent(url)).then(x => x.json());
-    if (!r.ok) { showMsg('parseMsg', r.error || '解析失败', 'err'); return; }
+    if (!r.ok) { showMsg('quickMsg', r.error || '解析失败', 'err'); return; }
     renderResults(r.data);
-    showMsg('parseMsg', '解析成功 · 无需 Cookie · 可下载无水印原视频', 'ok');
-  } catch (e) {
-    showMsg('parseMsg', '请求失败：' + e.message, 'err');
-  } finally { setLoading(btn, false, '快速解析'); }
-}
+    const pf = r.data.platformLabel ? r.data.platformLabel + ' · ' : '';
+    showMsg('quickMsg', pf + '解析成功，共 ' + r.data.count + ' 个文件', 'ok');
+  } catch (err) {
+    showMsg('quickMsg', '请求失败：' + err.message, 'err');
+  } finally { setLoading(btn, false, '解析'); }
+};
 
-async function doFetch(url, mode, btn, label) {
-  if (mode !== 'favorite' && !url.trim()) { showMsg('parseMsg', '请粘贴链接', 'err'); return; }
-  setLoading(btn, true, label);
-  showMsg('parseMsg', '', '');
+$('btnBatch').onclick = async e => {
+  const btn = e.currentTarget, url = $('urlBatch').value.trim(), mode = $('batchMode').value;
+  if (!url) { showMsg('batchMsg', '请粘贴主页链接', 'err'); return; }
+  setLoading(btn, true, '批量解析');
+  showMsg('batchMsg', '', '');
   try {
     const r = await fetch('/api/fetch', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({url, mode, cookie: $('cookie').value.trim(), limit: +$('limit').value})
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ url, mode, cookie: $('cookie').value.trim(), limit: +$('limit').value })
     }).then(x => x.json());
-    if (!r.ok) { showMsg('parseMsg', r.error || '解析失败', 'err'); return; }
+    if (!r.ok) { showMsg('batchMsg', r.error || '解析失败', 'err'); return; }
     renderResults(r.data);
-    showMsg('parseMsg', '解析完成，共 ' + r.data.count + ' 个文件', 'ok');
-  } catch (e) {
-    showMsg('parseMsg', '请求失败：' + e.message, 'err');
-  } finally { setLoading(btn, false, label); }
-}
+    showMsg('batchMsg', '解析完成，共 ' + r.data.count + ' 个文件', 'ok');
+  } catch (err) {
+    showMsg('batchMsg', '请求失败：' + err.message, 'err');
+  } finally { setLoading(btn, false, '批量解析'); }
+};
 
-async function doParse(btn) {
-  const url = $('urlSingle').value.trim();
-  if (!url) { showMsg('parseMsg', '请粘贴作品链接', 'err'); return; }
-  setLoading(btn, true, '解析链接');
-  showMsg('parseMsg', '', '');
-  try {
-    const r = await fetch('/api/parse', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({url, cookie: $('cookie').value.trim()})
-    }).then(x => x.json());
-    if (!r.ok) { showMsg('parseMsg', r.error || '解析失败', 'err'); return; }
-    renderResults(r.data);
-    showMsg('parseMsg', '解析完成，共 ' + r.data.count + ' 个文件', 'ok');
-  } catch (e) {
-    showMsg('parseMsg', '请求失败：' + e.message, 'err');
-  } finally { setLoading(btn, false, '解析链接'); }
-}
-
+/* ---------- 结果渲染 ---------- */
 function renderResults(data) {
   const works = data.works || [];
   allLinks = works.map(w => w.url).filter(Boolean);
   const p = data.profile || {};
-  $('resSummary').innerHTML = '<b>' + esc(p.nickname || '作品') + '</b> · 共 ' + data.count + ' 个文件';
+  const images = works.filter(w => w.kind === 'image');
+
+  $('resTitle').textContent = p.nickname || '解析结果';
+  $('resMeta').textContent = (data.platformLabel ? '· ' + data.platformLabel + ' ' : '')
+    + '· 共 ' + (data.count || works.length) + ' 个文件';
+
+  const zipBtn = $('btnZip');
+  if (images.length >= 2) {
+    zipBtn.style.display = '';
+    zipBtn.textContent = '打包下载 ' + images.length + ' 张图';
+    zipBtn.onclick = () => doZip(images.map(i => i.url), p.nickname || 'images', zipBtn);
+  } else {
+    zipBtn.style.display = 'none';
+  }
+
+  // 背景音乐按钮（有的平台会返回 BGM）
+  const oldMusic = document.getElementById('btnMusic');
+  if (oldMusic) oldMusic.remove();
+  if (data.musicUrl) {
+    const a = document.createElement('a');
+    a.id = 'btnMusic';
+    a.className = 'ghost sm';
+    a.textContent = '下载 BGM';
+    a.href = '/api/download?url=' + encodeURIComponent(data.musicUrl) + '&name=' + encodeURIComponent('bgm.mp3');
+    document.querySelector('.res-acts').appendChild(a);
+  }
+
   $('results').style.display = works.length ? 'block' : 'none';
   const grid = $('grid');
   grid.innerHTML = works.map(w => {
     const kindLabel = {video:'视频', image:'图片', live:'实况'}[w.kind] || w.kind;
-    const isMedia = w.kind === 'image' || w.kind === 'live';
-    // 封面：优先后端给的 cover，图集再退回自身地址
-    const cover = w.cover || (isMedia ? w.url : '') || data.coverUrl || '';
+    const cover = w.cover || (w.kind === 'image' ? w.url : '') || data.coverUrl || '';
     const name = safeName(w.desc || w.awemeId);
     const openUrl = '/api/download?url=' + encodeURIComponent(w.url) + '&name=' + encodeURIComponent(name) + '&inline=1';
-    const dlUrl = '/api/download?url=' + encodeURIComponent(w.url) + '&name=' + encodeURIComponent(name + '.' + (w.ext || 'mp4').replace(/^\./, '')) ;
-    const date = (w.date || '').slice(0, 16);
-    const coverHtml = cover
-      ? '<img src="' + esc(coverSrc(cover)) + '" loading="lazy" decoding="async" alt="" data-cover="1">'
-      : '';
-    return '<div class="item"><div class="thumb' + (w.url ? ' media' : '') + '" data-open="' + esc(openUrl) + '">' +
-      '<div class="ph">暂无预览</div>' + coverHtml +
-      '<span class="kind">' + esc(kindLabel) + '</span>' +
-      (w.kind === 'video' || w.kind === 'live' ? '<span class="play">▶</span>' : '') +
+    const dlUrl = '/api/download?url=' + encodeURIComponent(w.url) + '&name='
+      + encodeURIComponent(name + '.' + (w.ext || 'mp4').replace(/^\./, ''));
+    const meta = [w.date, w.mix].filter(Boolean).join(' · ');
+    return '<div class="item">' +
+      '<div class="thumb clickable" data-open="' + esc(openUrl) + '">' +
+        '<div class="ph">暂无预览</div>' +
+        (cover ? '<img src="' + esc(coverSrc(cover)) + '" loading="lazy" decoding="async" alt="" data-cover="1">' : '') +
+        '<span class="kind">' + esc(kindLabel) + '</span>' +
+        (w.kind === 'video' || w.kind === 'live' ? '<span class="play">▶</span>' : '') +
       '</div>' +
-      '<div class="body"><div class="desc">' + esc(w.desc) + '</div>' +
-      '<div class="meta">' + esc(date) + (w.mix ? ' · ' + esc(w.mix) : '') + '</div>' +
-      '<div class="acts"><a href="' + esc(openUrl) + '" target="_blank" rel="noopener">打开</a>' +
-      '<a href="' + esc(dlUrl) + '">下载</a>' +
-      '<button data-link="' + esc(w.url) + '">复制</button></div></div></div>';
+      '<div class="bd">' +
+        '<div class="ds">' + esc(w.desc) + '</div>' +
+        '<div class="mt">' + esc(meta || '—') + '</div>' +
+        '<div class="ac">' +
+          '<a href="' + esc(openUrl) + '" target="_blank" rel="noopener">预览</a>' +
+          '<a href="' + esc(dlUrl) + '">下载</a>' +
+          '<button data-link="' + esc(w.url) + '">复制</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
   }).join('');
 
-  // 封面加载失败就隐藏 img，露出后面的占位文字（不弹 console 报错）
   grid.querySelectorAll('img[data-cover]').forEach(img => {
     img.onerror = () => { img.style.display = 'none'; };
   });
-  // 点缩略图直接预览原图/原视频
   grid.querySelectorAll('.thumb[data-open]').forEach(t => {
     t.onclick = () => { if (t.dataset.open) window.open(t.dataset.open, '_blank', 'noopener'); };
   });
   grid.querySelectorAll('button[data-link]').forEach(b => {
-    b.onclick = () => { navigator.clipboard.writeText(b.dataset.link); b.textContent='已复制'; setTimeout(()=>b.textContent='复制',1500); };
+    b.onclick = () => {
+      navigator.clipboard.writeText(b.dataset.link);
+      b.textContent = '已复制';
+      setTimeout(() => b.textContent = '复制', 1500);
+    };
   });
+  $('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-$('btnQuick').onclick = e => doQuick(e.currentTarget);
-$('btnParse').onclick = e => doParse(e.currentTarget);
-$('btnFetchPost').onclick = e => doFetch($('urlPost').value, 'post', e.currentTarget, '批量解析');
-$('btnFetchFav').onclick = e => doFetch($('urlFavorite').value, 'favorite', e.currentTarget, '批量解析');
 $('btnCopyAll').onclick = e => {
   if (!allLinks.length) return;
   navigator.clipboard.writeText(allLinks.join('\n'));
-  e.currentTarget.textContent = '已复制 ' + allLinks.length + ' 条';
-  setTimeout(() => e.currentTarget.textContent = '复制全部直链', 1800);
+  const btn = e.currentTarget;
+  btn.textContent = '已复制 ' + allLinks.length + ' 条';
+  setTimeout(() => btn.textContent = '复制全部直链', 1800);
+};
+
+/* ---------- 图集打包 ---------- */
+async function doZip(urls, name, btn) {
+  if (!urls.length) return;
+  const old = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '打包中…';
+  try {
+    const r = await fetch('/api/zip', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ name, urls })
+    });
+    if (!r.ok) throw new Error((await r.text()) || ('HTTP ' + r.status));
+    const blob = await r.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = safeName(name) + '_图集.zip';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  } catch (e) {
+    alert('打包失败：' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = old;
+  }
+}
+
+/* ---------- 配音 ---------- */
+$('ttsRate').oninput = e => {
+  const v = +e.currentTarget.value;
+  $('rateLabel').textContent = (v > 0 ? '+' : '') + v + '%';
+};
+
+fetch('/api/voices').then(r => r.json()).then(d => {
+  const list = (d && d.data) || [];
+  if (!list.length) return;
+  $('ttsVoice').innerHTML = list.map(v =>
+    '<option value="' + esc(v.id) + '">' + esc(v.name) + '</option>').join('');
+}).catch(() => {});
+
+$('btnTts').onclick = e => {
+  const btn = e.currentTarget, text = $('ttsText').value.trim();
+  if (!text) { showMsg('ttsMsg', '先输入要配音的文字', 'err'); return; }
+  if (text.length > 2000) { showMsg('ttsMsg', '文字太长了，单次最多 2000 字', 'err'); return; }
+  const rateVal = +$('ttsRate').value;
+  const rate = (rateVal > 0 ? '+' : '') + rateVal + '%';
+  const url = '/api/tts?text=' + encodeURIComponent(text)
+    + '&voice=' + encodeURIComponent($('ttsVoice').value)
+    + '&rate=' + encodeURIComponent(rate);
+
+  setLoading(btn, true, '生成配音');
+  showMsg('ttsMsg', '', '');
+  const audio = $('audio');
+  const done = ok => {
+    setLoading(btn, false, '生成配音');
+    if (!ok) { $('audioBox').style.display = 'none'; }
+  };
+  audio.onerror = () => {
+    showMsg('ttsMsg', '合成失败，稍后重试或换个音色', 'err');
+    done(false);
+  };
+  audio.oncanplay = () => {
+    $('audioBox').style.display = 'block';
+    $('dlAudio').href = url;
+    $('dlAudio').setAttribute('download', '配音_' + safeName(text.slice(0, 12)) + '.mp3');
+    showMsg('ttsMsg', '合成完成，可以试听或下载', 'ok');
+    done(true);
+    audio.play().catch(() => {});
+  };
+  audio.src = url;
+  audio.load();
+};
+
+/* ---------- AI 改写 ---------- */
+document.querySelectorAll('.mode').forEach(m => {
+  m.onclick = () => {
+    document.querySelectorAll('.mode').forEach(x => x.classList.remove('on'));
+    m.classList.add('on');
+    aiMode = m.dataset.mode;
+  };
+});
+
+$('btnAi').onclick = async e => {
+  const btn = e.currentTarget, text = $('aiText').value.trim();
+  if (!text) { showMsg('aiMsg', '先粘贴原文', 'err'); return; }
+  setLoading(btn, true, '开始改写');
+  showMsg('aiMsg', '', '');
+  const out = $('aiOut');
+  out.classList.remove('show');
+  try {
+    const r = await fetch('/api/ai', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ mode: aiMode, text })
+    }).then(x => x.json());
+    if (!r.ok) { showMsg('aiMsg', r.error || '改写失败', 'err'); return; }
+    out.textContent = r.data.result;
+    out.classList.add('show');
+    out.onclick = () => {
+      navigator.clipboard.writeText(r.data.result);
+      $('aiState').textContent = '已复制到剪贴板';
+      setTimeout(() => $('aiState').textContent = '', 1600);
+    };
+    $('aiState').textContent = '点结果可复制';
+  } catch (err) {
+    showMsg('aiMsg', '请求失败：' + err.message, 'err');
+  } finally { setLoading(btn, false, '开始改写'); }
 };
 </script>
 </body>

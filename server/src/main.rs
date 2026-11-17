@@ -6,6 +6,7 @@ mod douyin;
 mod error;
 mod models;
 mod paths;
+mod zipstore;
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -200,6 +201,7 @@ async fn check_cookie(
 }
 
 /// 抖音 CDN 允许的域名后缀。白名单防止此接口被当成开放代理滥用。
+#[allow(dead_code)]
 const CDN_ALLOW: &[&str] = &[
     "douyinvod.com",
     "douyin.com",
@@ -215,6 +217,7 @@ const CDN_ALLOW: &[&str] = &[
     "cdn-ali.tiktok.com",
 ];
 
+#[allow(dead_code)]
 fn is_allowed_cdn(url: &str) -> bool {
     let Ok(u) = url::Url::parse(url) else {
         return false;
@@ -229,7 +232,76 @@ fn is_allowed_cdn(url: &str) -> bool {
     CDN_ALLOW.iter().any(|suffix| host == *suffix || host.ends_with(&format!(".{suffix}")))
 }
 
-/// 流式代理下载抖音 CDN 文件。
+/// 允许代取的公网地址判定。
+///
+/// 多平台（快手 / 小红书 / B 站 / 微博…）的 CDN 域名太多太长尾，维护一份精确白名单
+/// 不现实，改成「只挡内网」：拒绝裸 IP、localhost、常见内网后缀与非 80/443 端口。
+/// 这样既能代理各家 CDN，又不至于被当成内网探测入口。
+fn is_public_url(raw: &str) -> bool {
+    let Ok(u) = url::Url::parse(raw) else {
+        return false;
+    };
+    if u.scheme() != "https" && u.scheme() != "http" {
+        return false;
+    }
+    let Some(host) = u.host_str() else {
+        return false;
+    };
+    let h = host.to_ascii_lowercase();
+
+    // 裸 IP 一律拒绝：CDN 都是域名，走 IP 的多半是探测
+    if h.parse::<std::net::IpAddr>().is_ok() {
+        return false;
+    }
+    if h == "localhost"
+        || h.ends_with(".local")
+        || h.ends_with(".internal")
+        || h.ends_with(".localhost")
+    {
+        return false;
+    }
+    // 必须有域名点，杜绝单段主机名
+    if !h.contains('.') {
+        return false;
+    }
+    matches!(u.port(), None | Some(80) | Some(443))
+}
+
+/// 取 CDN 资源：先不带 Referer 试一次，失败再补抖音 Referer 重试。
+///
+/// 各平台 CDN 的防盗链策略不一样——字节系要抖音 Referer，快手/小红书/B站 反而
+/// 对陌生 Referer 更敏感。两段式比维护一张「哪家要什么 Referer」的表可靠。
+async fn fetch_media(
+    client: &reqwest::Client,
+    url: &str,
+    range: Option<HeaderValue>,
+) -> Result<reqwest::Response, String> {
+    let mut first = client.get(url).header(header::USER_AGENT, douyin::api::UA);
+    if let Some(rg) = range.clone() {
+        first = first.header(header::RANGE, rg);
+    }
+    let resp = first
+        .send()
+        .await
+        .map_err(|e| format!("请求 CDN 失败: {e}"))?;
+    if resp.status().is_success() {
+        return Ok(resp);
+    }
+
+    let mut second = client
+        .get(url)
+        .header(header::USER_AGENT, douyin::api::UA)
+        .header(header::REFERER, "https://www.douyin.com/");
+    if let Some(rg) = range {
+        second = second.header(header::RANGE, rg);
+    }
+    second
+        .send()
+        .await
+        .map_err(|e| format!("请求 CDN 失败: {e}"))
+}
+
+/// 流式代理下载 CDN 文件。
 /// 浏览器直连 CDN 会因 Referer 校验返回 403；由后端带正确 Referer 转发即可。
 ///
 /// 转发客户端的 `Range`：`<video>` 播放时浏览器会按段请求，不转发就只能整段下载，
@@ -239,29 +311,14 @@ async fn download(
     Query(q): Query<DownloadReq>,
     headers_in: HeaderMap,
 ) -> Response {
-    if !is_allowed_cdn(&q.url) {
-        return (
-            StatusCode::BAD_REQUEST,
-            "仅允许代理抖音 CDN 域名".to_string(),
-        )
-            .into_response();
+    if !is_public_url(&q.url) {
+        return (StatusCode::BAD_REQUEST, "仅允许代理公网 CDN 地址").into_response();
     }
 
-    let mut req = st
-        .client
-        .client
-        .get(&q.url)
-        .header(header::REFERER, "https://www.douyin.com/")
-        .header(header::USER_AGENT, douyin::api::UA);
-    if let Some(range) = headers_in.get(header::RANGE) {
-        req = req.header(header::RANGE, range.clone());
-    }
-
-    let upstream = match req.send().await {
+    let range = headers_in.get(header::RANGE).cloned();
+    let upstream = match fetch_media(&st.client.client, &q.url, range).await {
         Ok(r) => r,
-        Err(e) => {
-            return (StatusCode::BAD_GATEWAY, format!("请求 CDN 失败: {e}")).into_response()
-        }
+        Err(e) => return (StatusCode::BAD_GATEWAY, e).into_response(),
     };
 
     let status = upstream.status();
@@ -317,24 +374,13 @@ async fn image_proxy(
     State(st): State<AppState>,
     Query(q): Query<ImgReq>,
 ) -> Response {
-    if !is_allowed_cdn(&q.url) {
-        return (StatusCode::BAD_REQUEST, "仅允许代理抖音 CDN 域名").into_response();
+    if !is_public_url(&q.url) {
+        return (StatusCode::BAD_REQUEST, "仅允许代理公网 CDN 地址").into_response();
     }
 
-    let resp = st
-        .client
-        .client
-        .get(&q.url)
-        .header(header::REFERER, "https://www.douyin.com/")
-        .header(header::USER_AGENT, douyin::api::UA)
-        .send()
-        .await;
-
-    let upstream = match resp {
+    let upstream = match fetch_media(&st.client.client, &q.url, None).await {
         Ok(r) => r,
-        Err(e) => {
-            return (StatusCode::BAD_GATEWAY, format!("请求图片失败: {e}")).into_response()
-        }
+        Err(e) => return (StatusCode::BAD_GATEWAY, e).into_response(),
     };
 
     let status = upstream.status();
@@ -412,36 +458,374 @@ async fn quick_parse(
         return Json(ApiResp::err(msg));
     }
     let d = body.get("data").cloned().unwrap_or_default();
-    let cover = d.get("cover_url").and_then(|v| v.as_str()).unwrap_or("");
-    // 映射成前端统一的作品行（TaskRow 风格），无水印直链放 url 字段
-    let row = serde_json::json!({
-        "id": "quick-1",
-        "awemeId": "quick",
-        "desc": d.get("title").and_then(|v| v.as_str()).unwrap_or(""),
-        "kind": "video",
-        "url": d.get("video_url").and_then(|v| v.as_str()).unwrap_or(""),
-        "playUrl": d.get("video_url").and_then(|v| v.as_str()).unwrap_or(""),
-        "ext": "mp4",
-        "isImage": false,
-        "cover": cover,
-        "date": "",
-        "mix": "",
-        "ownerNickname": d.get("author").and_then(|a| a.get("name")).and_then(|v| v.as_str()).unwrap_or(""),
-        "urlHash": "quick",
-    });
+    let str_of = |v: Option<&serde_json::Value>| v.and_then(|x| x.as_str()).unwrap_or("").to_string();
+
+    let title = str_of(d.get("title"));
+    let cover = str_of(d.get("cover_url"));
+    let video_url = str_of(d.get("video_url"));
+    let music_url = str_of(d.get("music_url"));
+    let author_name = str_of(d.get("author").and_then(|a| a.get("name")));
+    let author_avatar = str_of(d.get("author").and_then(|a| a.get("avatar")));
+    let platform = str_of(d.get("platform"));
+    let platform_label = str_of(d.get("platform_label"));
+
+    let mut works: Vec<serde_json::Value> = Vec::new();
+
+    // 视频（图集作品也可能带 livephoto 视频，两者都收）
+    if !video_url.is_empty() {
+        works.push(serde_json::json!({
+            "id": "quick-video",
+            "awemeId": "quick",
+            "desc": title,
+            "kind": "video",
+            "url": video_url,
+            "playUrl": video_url,
+            "ext": "mp4",
+            "isImage": false,
+            "cover": cover,
+            "date": "",
+            "mix": "",
+            "ownerNickname": author_name,
+            "urlHash": "quick-video",
+        }));
+    }
+
+    // 图集：每张图一行，前端可逐张下载或整包打包
+    if let Some(images) = d.get("images").and_then(|v| v.as_array()) {
+        for (i, img) in images.iter().enumerate() {
+            let url = img.get("url").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let live = img
+                .get("live_photo_url")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            if url.is_empty() && live.is_empty() {
+                continue;
+            }
+            let (kind, real, is_image, ext) = if live.is_empty() {
+                ("image", url.clone(), true, "jpg")
+            } else {
+                ("live", live.clone(), true, "mp4")
+            };
+            works.push(serde_json::json!({
+                "id": format!("quick-img-{i}"),
+                "awemeId": "quick",
+                "desc": format!("{title}_p{}", i + 1),
+                "kind": kind,
+                "url": real,
+                "playUrl": real,
+                "ext": ext,
+                "isImage": is_image,
+                "cover": if url.is_empty() { cover.clone() } else { url },
+                "date": "",
+                "mix": "",
+                "ownerNickname": author_name,
+                "urlHash": format!("quick-img-{i}"),
+            }));
+        }
+    }
+
+    if works.is_empty() {
+        return Json(ApiResp::err("没有解析到可下载的内容，可能是链接已失效或该平台暂时不可用"));
+    }
+    let count = works.len();
+
     let profile = serde_json::json!({
-        "nickname": d.get("author").and_then(|a| a.get("name")).and_then(|v| v.as_str()).unwrap_or(""),
+        "nickname": author_name,
         "uniqueId": "",
-        "avatarUrl": d.get("author").and_then(|a| a.get("avatar")).and_then(|v| v.as_str()).unwrap_or(""),
+        "avatarUrl": author_avatar,
         "secUid": "",
     });
     Json(ApiResp::ok(serde_json::json!({
         "profile": profile,
-        "works": [row],
-        "count": 1,
+        "works": works,
+        "count": count,
         "mode": "quick",
-        "coverUrl": d.get("cover_url").and_then(|v| v.as_str()).unwrap_or(""),
+        "coverUrl": cover,
+        "musicUrl": music_url,
+        "platform": platform,
+        "platformLabel": platform_label,
     })))
+}
+
+// ---------- 图集打包 ----------
+
+#[derive(Debug, Deserialize)]
+struct ZipReq {
+    #[serde(default)]
+    name: String,
+    urls: Vec<String>,
+}
+
+/// 单次打包上限：张数与总字节。图集一般 9~18 张，6000 万像素图也不会到 120MB。
+const ZIP_MAX_ITEMS: usize = 60;
+const ZIP_MAX_BYTES: u64 = 120 * 1024 * 1024;
+
+/// 由 URL 或 Content-Type 猜图片扩展名。
+fn image_ext(url: &str, ct: &str) -> &'static str {
+    let lower = url.to_ascii_lowercase();
+    if lower.contains(".png") {
+        "png"
+    } else if lower.contains(".webp") {
+        "webp"
+    } else if lower.contains(".gif") {
+        "gif"
+    } else if ct.contains("png") {
+        "png"
+    } else if ct.contains("webp") {
+        "webp"
+    } else if ct.contains("gif") {
+        "gif"
+    } else {
+        "jpg"
+    }
+}
+
+/// 图集打包下载：后端逐张取回，打成不压缩的 zip 一次性返回。
+async fn zip_download(
+    State(st): State<AppState>,
+    Json(req): Json<ZipReq>,
+) -> Response {
+    let urls: Vec<String> = req
+        .urls
+        .into_iter()
+        .filter(|u| is_public_url(u))
+        .take(ZIP_MAX_ITEMS)
+        .collect();
+    if urls.is_empty() {
+        return (StatusCode::BAD_REQUEST, "没有可打包的图片").into_response();
+    }
+
+    let base = {
+        let n = req.name.trim();
+        let n = if n.is_empty() { "images" } else { n };
+        paths::sanitize_filename(n, 60)
+    };
+
+    let mut files: Vec<(String, Vec<u8>)> = Vec::new();
+    let mut total: u64 = 0;
+    for (i, u) in urls.iter().enumerate() {
+        let Ok(resp) = fetch_media(&st.client.client, u, None).await else {
+            continue;
+        };
+        if !resp.status().is_success() {
+            continue;
+        }
+        let ct = resp
+            .headers()
+            .get(header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("")
+            .to_string();
+        let Ok(bytes) = resp.bytes().await else { continue };
+        if bytes.is_empty() {
+            continue;
+        }
+        total += bytes.len() as u64;
+        if total > ZIP_MAX_BYTES {
+            break;
+        }
+        let ext = image_ext(u, &ct);
+        files.push((format!("{:02}.{}", i + 1, ext), bytes.to_vec()));
+    }
+
+    if files.is_empty() {
+        return (StatusCode::BAD_GATEWAY, "图片全部获取失败，链接可能已过期").into_response();
+    }
+
+    let n = files.len();
+    let zip = zipstore::build_zip(&files);
+    tracing::info!("zip {} 张 -> {} 字节", n, zip.len());
+
+    let fname = format!("{base}_{n}张.zip");
+    let disposition = format!(
+        "attachment; filename=\"album.zip\"; filename*=UTF-8''{}",
+        percent_encoding::utf8_percent_encode(&fname, percent_encoding::CONTROLS)
+    );
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/zip"),
+    );
+    if let Ok(v) = HeaderValue::from_str(&disposition) {
+        headers.insert(header::CONTENT_DISPOSITION, v);
+    }
+    (StatusCode::OK, headers, Body::from(zip)).into_response()
+}
+
+// ---------- 配音（TTS） ----------
+
+#[derive(Debug, Deserialize)]
+struct TtsReq {
+    text: String,
+    #[serde(default)]
+    voice: String,
+    #[serde(default)]
+    rate: String,
+}
+
+/// 配音：转发到本机 Python 服务的 edge-tts。
+async fn tts(State(st): State<AppState>, Query(q): Query<TtsReq>) -> Response {
+    if q.text.trim().is_empty() {
+        return (StatusCode::BAD_REQUEST, "请先输入要配音的文字").into_response();
+    }
+    let voice = if q.voice.trim().is_empty() {
+        "zh-CN-YunxiNeural"
+    } else {
+        q.voice.trim()
+    };
+    let rate = if q.rate.trim().is_empty() {
+        "+0%"
+    } else {
+        q.rate.trim()
+    };
+    let enc = |s: &str| percent_encoding::utf8_percent_encode(s, percent_encoding::NON_ALPHANUMERIC).to_string();
+    let target = format!(
+        "http://127.0.0.1:8095/tts?text={}&voice={}&rate={}",
+        enc(&q.text),
+        enc(voice),
+        enc(rate)
+    );
+
+    let resp = match st.client.client.get(&target).send().await {
+        Ok(r) => r,
+        Err(e) => return (StatusCode::BAD_GATEWAY, format!("配音服务不可用: {e}")).into_response(),
+    };
+    let status = resp.status();
+    if !status.is_success() {
+        // 上游的错误是 JSON {code,msg}，翻译成人话返回
+        let msg = resp
+            .json::<serde_json::Value>()
+            .await
+            .ok()
+            .and_then(|v| v.get("msg").and_then(|m| m.as_str()).map(|s| s.to_string()))
+            .unwrap_or_else(|| format!("配音失败（{status}）"));
+        return (StatusCode::BAD_GATEWAY, msg).into_response();
+    }
+    let bytes = match resp.bytes().await {
+        Ok(b) => b,
+        Err(e) => return (StatusCode::BAD_GATEWAY, format!("读取音频失败: {e}")).into_response(),
+    };
+
+    let mut headers = HeaderMap::new();
+    headers.insert(header::CONTENT_TYPE, HeaderValue::from_static("audio/mpeg"));
+    headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    (StatusCode::OK, headers, Body::from(bytes.to_vec())).into_response()
+}
+
+/// 可用音色列表（转发 Python 服务）。
+async fn voices(State(st): State<AppState>) -> Json<serde_json::Value> {
+    match st
+        .client
+        .client
+        .get("http://127.0.0.1:8095/voices")
+        .send()
+        .await
+    {
+        Ok(r) => match r.json::<serde_json::Value>().await {
+            Ok(v) => Json(v),
+            Err(e) => Json(serde_json::json!({ "code": 500, "msg": format!("{e}") })),
+        },
+        Err(e) => Json(serde_json::json!({ "code": 500, "msg": format!("配音服务不可用: {e}") })),
+    }
+}
+
+// ---------- AI 改写 ----------
+
+#[derive(Debug, Deserialize)]
+struct AiReq {
+    mode: String,
+    text: String,
+}
+
+fn ai_prompt(mode: &str, text: &str) -> Option<(String, String)> {
+    let system = "你是短视频内容运营，擅长抖音口播与爆款文案。输出中文，直接给结果，不要解释过程、不要客套。";
+    let task = match mode {
+        "title" => "基于下面这段内容，写 10 个抖音标题：每个不超过 20 字，口语化、有钩子，前缀用 1. 2. 3. 编号。",
+        "selling" => "提炼 5 条产品/内容卖点：每条一句话，具体、可感知，避免空话，前缀用 1. 2. 3. 编号。",
+        "script" => "改写成一条 30 秒短视频口播脚本（约 120~150 字）：开头 3 秒抓人，中间讲清一个点，结尾引导互动。只输出脚本正文。",
+        "rewrite" => "对下面这段文案做伪原创改写：保留信息内核，换结构与用词，避免与原句雷同，读起来像人说的话。只输出改写后的文案。",
+        "summary" => "总结下面内容：先给 3~5 条要点（编号），最后给一句话结论。",
+        _ => return None,
+    };
+    Some((system.to_string(), format!("{task}\n\n原文：\n{text}")))
+}
+
+/// AI 改写：走 OpenAI 兼容接口，Key 从环境变量读。
+/// 未配置时返回明确提示，不影响其它功能。
+async fn ai_rewrite(
+    State(st): State<AppState>,
+    Json(req): Json<AiReq>,
+) -> Json<ApiResp<serde_json::Value>> {
+    let text = req.text.trim();
+    if text.is_empty() {
+        return Json(ApiResp::err("请先输入原文"));
+    }
+    if text.chars().count() > 4000 {
+        return Json(ApiResp::err("原文过长，请控制在 4000 字以内"));
+    }
+    let Some((system, user)) = ai_prompt(&req.mode, text) else {
+        return Json(ApiResp::err(format!("未知模式: {}", req.mode)));
+    };
+
+    let key = std::env::var("AI_API_KEY").unwrap_or_default();
+    if key.trim().is_empty() {
+        return Json(ApiResp::err(
+            "AI 改写还没启用：需要在服务器 .env 里配置 AI_API_KEY（OpenAI 兼容接口，如 DeepSeek）",
+        ));
+    }
+    let base = std::env::var("AI_BASE_URL").unwrap_or_else(|_| "https://api.deepseek.com/v1".into());
+    let model = std::env::var("AI_MODEL").unwrap_or_else(|_| "deepseek-chat".into());
+    let url = format!("{}/chat/completions", base.trim_end_matches('/'));
+
+    let payload = serde_json::json!({
+        "model": model,
+        "messages": [
+            { "role": "system", "content": system },
+            { "role": "user", "content": user }
+        ],
+        "temperature": 0.7,
+        "max_tokens": 1200,
+    });
+
+    let resp = st
+        .client
+        .client
+        .post(&url)
+        .header(header::AUTHORIZATION, format!("Bearer {}", key.trim()))
+        .json(&payload)
+        .send()
+        .await;
+    let resp = match resp {
+        Ok(r) => r,
+        Err(e) => return Json(ApiResp::err(format!("调用大模型失败: {e}"))),
+    };
+    let status = resp.status();
+    let body: serde_json::Value = match resp.json().await {
+        Ok(v) => v,
+        Err(e) => return Json(ApiResp::err(format!("大模型返回异常: {e}"))),
+    };
+    if !status.is_success() {
+        let msg = body
+            .get("error")
+            .and_then(|e| e.get("message"))
+            .and_then(|m| m.as_str())
+            .unwrap_or("未知错误");
+        return Json(ApiResp::err(format!("大模型返回 {status}: {msg}")));
+    }
+    let content = body
+        .get("choices")
+        .and_then(|c| c.get(0))
+        .and_then(|c| c.get("message"))
+        .and_then(|m| m.get("content"))
+        .and_then(|c| c.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if content.is_empty() {
+        return Json(ApiResp::err("大模型返回为空"));
+    }
+    Json(ApiResp::ok(serde_json::json!({ "result": content, "mode": req.mode })))
 }
 
 #[tokio::main]
@@ -471,6 +855,10 @@ async fn main() {
         .route("/api/cookie/check", post(check_cookie))
         .route("/api/download", get(download))
         .route("/api/img", get(image_proxy))
+        .route("/api/zip", post(zip_download))
+        .route("/api/tts", get(tts))
+        .route("/api/voices", get(voices))
+        .route("/api/ai", post(ai_rewrite))
         .route("/api/quick-parse", get(quick_parse))
         .with_state(state)
         .layer(cors);

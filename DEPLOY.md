@@ -15,11 +15,15 @@
 
 ```
 dy.foxnan.com
-   ├─ /api/quick-parse  →  127.0.0.1:8095 (Python parse-video-py)  免 Cookie，分享短链
+   ├─ /api/quick-parse  →  127.0.0.1:8095 (Python parse-video-py)  免 Cookie，20+ 平台
    ├─ /api/parse        →  Rust 核心 a_bogus 签名                  需 Cookie，单作品
    ├─ /api/fetch        →  Rust 核心 a_bogus 签名                  需 Cookie，主页/点赞批量
-   ├─ /api/download     →  流式代理抖音 CDN 视频/图片（带 Referer，解防盗链）
-   └─ /api/img          →  缩略图代理（同上，只放行 image/*，缓存 7 天）
+   ├─ /api/download     →  流式代理 CDN 视频（带 Referer + Range，解防盗链、可拖动）
+   ├─ /api/img          →  缩略图代理（同上，只放行 image/*，缓存 7 天）
+   ├─ /api/zip          →  图集打包（后端逐张取回，打不压缩 ZIP，最多 60 张 / 120MB）
+   ├─ /api/tts          →  127.0.0.1:8095/tts (edge-tts)           文字转 MP3
+   ├─ /api/voices       →  127.0.0.1:8095/voices                   可用音色
+   └─ /api/ai           →  OpenAI 兼容接口（AI_API_KEY）           伪原创 / 口播 / 标题 / 卖点
 ```
 
 | 引擎 | 服务 | 用途 | Cookie |
@@ -58,6 +62,42 @@ Python 解析服务：
 - 不转发时浏览器只能整段下载，`<video>` 进度条拖不动
 - 转发后「打开」页可边下边播、任意跳转
 - 实测同一条 365yg 直链：完整下载 42MB / `video/mp4`，字节头 `ftypisom` 正常
+
+## 工具箱功能（2026-11-18 上线）
+
+前端四大工具页，共用一套结果卡片：
+
+| 工具 | 后端 | 说明 |
+|---|---|---|
+| 去水印 | `/api/quick-parse` | 一个输入框贴任意平台链接，Python 侧 `share_url_source()` 自动识别平台并回传中文名 |
+| 抖音批量 | `/api/fetch` | 主页 / 点赞列表，需 Cookie，可限 50/200/500/全部 |
+| 文案配音 | `/api/tts` + `/api/voices` | edge-tts，8 个中文音色，语速 ±30%，输出 MP3 |
+| AI 改写 | `/api/ai` | 伪原创 / 30秒口播 / 爆款标题 / 提炼卖点 / 要点摘要 |
+
+图集作品会自动出现「打包下载 N 张图」按钮，背景音乐则单独给「下载 BGM」。
+
+### 代理白名单改成「只挡内网」
+
+多平台 CDN 域名太长尾（快手/小红书/B站/微博各家不同），维护精确白名单不现实。
+`is_public_url()` 改为：必须 http(s) + 域名带点 + 非裸 IP + 非 localhost/.local/.internal + 端口只能 80/443。
+裸 IP 一律拒绝，避免被当成内网探测入口。
+
+取 CDN 资源用两段式：先不带 Referer，失败再补抖音 Referer 重试——
+字节系要 Referer，其它家反而对陌生 Referer 敏感。
+
+### AI 改写启用方式
+
+代码已就绪，缺 Key 时接口返回明确提示，不影响其它功能。启用只需给 PM2 加环境变量：
+
+```bash
+pm2 restart dy-web --update-env   # 先在 ecosystem/环境里设置下面三项
+# AI_API_KEY=sk-xxx              必填，OpenAI 兼容服务的 Key
+# AI_BASE_URL=https://api.deepseek.com/v1   可选，默认就是 DeepSeek
+# AI_MODEL=deepseek-chat         可选
+```
+
+> 火山方舟那套 `ark-…` 的套餐 Key 只能调生图模型，文本模型会报
+> `UnsupportedModel: does not support the agent plan feature`，别拿它试 AI 改写。
 
 ## 功能
 
