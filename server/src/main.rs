@@ -213,8 +213,33 @@ fn require_user(st: &AppState, headers: &HeaderMap) -> Result<db::User, Response
     }
 }
 
-/// 未登录试用：按 IP 每天 TRIAL_PER_DAY 次，仅限单链接解析。
-fn try_trial(st: &AppState, headers: &HeaderMap) -> bool {
+/// 开工前只「查」额度，不扣。
+/// 之前是先扣再干活，解析失败也照样扣，用户会骂人。
+fn ensure_quota(st: &AppState, headers: &HeaderMap, kind: &str) -> Result<db::User, String> {
+    let user = require_user(st, headers)
+        .map_err(|_| "请先登录后再用（右上角登录 / 注册）".to_string())?;
+    let cost = quota_cost(kind);
+    let bal = st.db.balance(user.id);
+    if bal < cost {
+        return Err(format!(
+            "额度不足（剩余 {bal} 次）。去右上角充一个邀请码继续用"
+        ));
+    }
+    Ok(user)
+}
+
+/// 真正扣费：只在业务成功后调用。
+fn settle(st: &AppState, user: &db::User, kind: &str) {
+    let cost = quota_cost(kind);
+    match st.db.charge(user.id, kind, cost) {
+        Ok(Ok(after)) => tracing::info!("user {} -{cost} {kind} -> {after}", user.id),
+        Ok(Err(bal)) => tracing::warn!("user {} 余额不足({bal})，{kind} 未扣", user.id),
+        Err(e) => tracing::warn!("扣额度失败: {}", e.text()),
+    }
+}
+
+/// 未登录试用：只「查」不消耗，成功后由 trial_consume 记账。
+fn trial_available(st: &AppState, headers: &HeaderMap) -> bool {
     let ip = client_ip(headers);
     let today = chrono::Local::now().format("%Y-%m-%d").to_string();
     let mut map = st.trial.lock().unwrap();
@@ -222,25 +247,18 @@ fn try_trial(st: &AppState, headers: &HeaderMap) -> bool {
     if entry.0 != today {
         *entry = (today, 0);
     }
-    if entry.1 >= TRIAL_PER_DAY {
-        return false;
-    }
-    entry.1 += 1;
-    true
+    entry.1 < TRIAL_PER_DAY
 }
 
-/// 鉴权 + 扣额度，返回 Err 时给前端一句人话。
-/// 用字符串而不是 Response，是为了让业务 handler 继续返回 Json<ApiResp<..>>。
-fn gate(st: &AppState, headers: &HeaderMap, kind: &str) -> Result<db::User, String> {
-    let user = require_user(st, headers)
-        .map_err(|_| "请先登录后再用（右上角登录 / 注册）".to_string())?;
-    match st.db.charge(user.id, kind, quota_cost(kind)) {
-        Ok(Ok(_)) => Ok(user),
-        Ok(Err(bal)) => Err(format!(
-            "额度不足（剩余 {bal} 次）。去右上角充一个邀请码继续用"
-        )),
-        Err(e) => Err(e.text()),
+fn trial_consume(st: &AppState, headers: &HeaderMap) {
+    let ip = client_ip(headers);
+    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+    let mut map = st.trial.lock().unwrap();
+    let entry = map.entry(ip).or_insert((today.clone(), 0));
+    if entry.0 != today {
+        *entry = (today, 0);
     }
+    entry.1 += 1;
 }
 
 fn hash_password(pw: &str) -> Result<String, String> {
@@ -478,9 +496,10 @@ async fn parse(
     headers: HeaderMap,
     Json(req): Json<ParseReq>,
 ) -> Json<ApiResp<ParseData>> {
-    if let Err(msg) = gate(&st, &headers, "parse") {
-        return Json(ApiResp::err(msg));
-    }
+    let user = match ensure_quota(&st, &headers, "parse") {
+        Ok(u) => u,
+        Err(msg) => return Json(ApiResp::err(msg)),
+    };
     let url = req.url.trim();
     if url.is_empty() {
         return Json(ApiResp::err("请粘贴作品链接"));
@@ -489,6 +508,7 @@ async fn parse(
         Ok((profile, list)) => {
             let works = to_rows(&profile, &list);
             let count = works.len();
+            settle(&st, &user, "parse");
             Json(ApiResp::ok(ParseData {
                 profile,
                 works,
@@ -506,9 +526,10 @@ async fn fetch(
     headers: HeaderMap,
     Json(req): Json<FetchReq>,
 ) -> Json<ApiResp<ParseData>> {
-    if let Err(msg) = gate(&st, &headers, "fetch") {
-        return Json(ApiResp::err(msg));
-    }
+    let user = match ensure_quota(&st, &headers, "fetch") {
+        Ok(u) => u,
+        Err(msg) => return Json(ApiResp::err(msg)),
+    };
     let mode = match mode_from(&req.mode) {
         Ok(m) => m,
         Err(e) => return Json(ApiResp::err(e.to_string())),
@@ -527,6 +548,7 @@ async fn fetch(
             }
             let works = to_rows(&profile, &list);
             let count = works.len();
+            settle(&st, &user, "fetch");
             Json(ApiResp::ok(ParseData {
                 profile,
                 works,
@@ -795,16 +817,17 @@ async fn quick_parse(
     headers: HeaderMap,
     Query(q): Query<QuickReq>,
 ) -> Json<ApiResp<serde_json::Value>> {
-    // 登录用户按额度扣；未登录给每天 TRIAL_PER_DAY 次试用
-    match gate(&st, &headers, "parse") {
-        Ok(_) => {}
+    // 登录用户成功后扣额度；未登录给每天 TRIAL_PER_DAY 次试用
+    let anonymous = cookie_token(&headers).is_none();
+    let payer: Option<db::User> = match ensure_quota(&st, &headers, "parse") {
+        Ok(u) => Some(u),
         Err(msg) => {
-            let anonymous = cookie_token(&headers).is_none();
-            if !(anonymous && try_trial(&st, &headers)) {
+            if !(anonymous && trial_available(&st, &headers)) {
                 return Json(ApiResp::err(msg));
             }
+            None
         }
-    }
+    };
     if q.url.trim().is_empty() {
         return Json(ApiResp::err("请粘贴分享链接"));
     }
@@ -812,7 +835,13 @@ async fn quick_parse(
         "http://127.0.0.1:8095/parse?url={}",
         percent_encoding::utf8_percent_encode(&q.url, percent_encoding::CONTROLS)
     );
-    let resp = st.client.client.get(&target).send().await;
+    let resp = st
+        .client
+        .client
+        .get(&target)
+        .timeout(std::time::Duration::from_secs(45))
+        .send()
+        .await;
     let upstream = match resp {
         Ok(r) => r,
         Err(e) => return Json(ApiResp::err(format!("解析服务不可用: {e}"))),
@@ -897,6 +926,10 @@ async fn quick_parse(
         return Json(ApiResp::err("没有解析到可下载的内容，可能是链接已失效或该平台暂时不可用"));
     }
     let count = works.len();
+    match &payer {
+        Some(u) => settle(&st, u, "parse"),
+        None => trial_consume(&st, &headers),
+    }
 
     let profile = serde_json::json!({
         "nickname": author_name,
@@ -1116,9 +1149,10 @@ async fn asr_proxy(
     headers: HeaderMap,
     Query(q): Query<AsrReq>,
 ) -> Json<ApiResp<serde_json::Value>> {
-    if let Err(msg) = gate(&st, &headers, "asr") {
-        return Json(ApiResp::err(msg));
-    }
+    let user = match ensure_quota(&st, &headers, "asr") {
+        Ok(u) => u,
+        Err(msg) => return Json(ApiResp::err(msg)),
+    };
     let url = q.url.trim();
     if url.is_empty() {
         return Json(ApiResp::err("缺少视频直链"));
@@ -1160,6 +1194,7 @@ async fn asr_proxy(
             .unwrap_or("转写失败");
         return Json(ApiResp::err(msg));
     }
+    settle(&st, &user, "asr");
     Json(ApiResp::ok(body.get("data").cloned().unwrap_or_default()))
 }
 
@@ -1196,9 +1231,10 @@ async fn ai_rewrite(
     headers: HeaderMap,
     Json(req): Json<AiReq>,
 ) -> Json<ApiResp<serde_json::Value>> {
-    if let Err(msg) = gate(&st, &headers, "ai") {
-        return Json(ApiResp::err(msg));
-    }
+    let user = match ensure_quota(&st, &headers, "ai") {
+        Ok(u) => u,
+        Err(msg) => return Json(ApiResp::err(msg)),
+    };
     let text = req.text.trim();
     if text.is_empty() {
         return Json(ApiResp::err("请先输入原文"));
@@ -1267,6 +1303,7 @@ async fn ai_rewrite(
     if content.is_empty() {
         return Json(ApiResp::err("大模型返回为空"));
     }
+    settle(&st, &user, "ai");
     Json(ApiResp::ok(serde_json::json!({ "result": content, "mode": req.mode })))
 }
 
