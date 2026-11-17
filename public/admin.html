@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>管理后台 · 视频去水印</title>
+<meta name="robots" content="noindex,nofollow">
+<style>
+:root{
+  --brand:#2f6b5b;--brand-d:#255546;--brand-l:#eef4f1;--brand-line:#d8e7e1;
+  --bg:#f4f5f3;--card:#fff;--ink:#1f2523;--ink2:#5b6663;--ink3:#939c96;
+  --line:#e5e8e3;--danger:#c25b52;--warn:#b8863b;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.6}
+.wrap{max-width:1120px;margin:0 auto;padding:0 18px}
+header{background:#fff;border-bottom:1px solid var(--line);padding:14px 0}
+header .wrap{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.logo{display:flex;align-items:center;gap:10px}
+.mark{width:32px;height:32px;border-radius:9px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600}
+h1{margin:0;font-size:16px;font-weight:600}
+h1 small{font-weight:400;color:var(--ink3);font-size:12px;margin-left:8px}
+button{font-family:inherit;font-size:13px;cursor:pointer;border:none;border-radius:8px;padding:8px 14px;background:var(--brand);color:#fff;transition:.15s}
+button:hover{background:var(--brand-d)}
+button:disabled{opacity:.5;cursor:not-allowed}
+button.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand-line)}
+button.ghost:hover{background:var(--brand-l)}
+button.sm{padding:5px 10px;font-size:12px;border-radius:6px}
+button.danger{background:#fff;color:var(--danger);border:1px solid #f0d5d1}
+button.danger:hover{background:#fdf1ef}
+input,select{font-family:inherit;font-size:13px;padding:8px 11px;border:1px solid var(--line);border-radius:8px;background:#fbfcfa;outline:none;color:var(--ink)}
+input:focus,select:focus{border-color:var(--brand);background:#fff}
+.tabs{display:flex;gap:6px;margin:18px 0 14px;flex-wrap:wrap}
+.tab{padding:7px 15px;border-radius:20px;border:1px solid var(--line);background:#fff;color:var(--ink2);font-size:13px;cursor:pointer}
+.tab.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:14px}
+.stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.stat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.stat .k{font-size:12px;color:var(--ink3)}
+.stat .v{font-size:24px;font-weight:600;letter-spacing:-.5px;margin-top:2px}
+.stat .v small{font-size:12px;font-weight:400;color:var(--ink3);margin-left:4px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-size:12px;color:var(--ink3);font-weight:500}
+td.mono,th.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px}
+tr:hover td{background:#fafbf9}
+.pill{display:inline-block;font-size:11.5px;padding:1px 8px;border-radius:20px;background:var(--brand-l);color:var(--brand-d)}
+.pill.off{background:#fdf1ef;color:var(--danger)}
+.pill.warn{background:#fdf6e8;color:var(--warn)}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.acts{display:flex;gap:5px}
+.tbl-wrap{overflow-x:auto}
+.empty{color:var(--ink3);text-align:center;padding:26px 0;font-size:13px}
+#loginBox{max-width:340px;margin:12vh auto;background:#fff;border:1px solid var(--line);border-radius:14px;padding:24px}
+#loginBox h2{margin:0 0 4px;font-size:16px}
+#loginBox p{margin:0 0 16px;font-size:12.5px;color:var(--ink3)}
+#loginBox input{width:100%;margin-bottom:10px}
+#loginBox button{width:100%}
+.err{color:var(--danger);font-size:12.5px;margin-top:10px;min-height:18px}
+.hidden{display:none !important}
+.pager{display:flex;gap:8px;align-items:center;margin-top:12px;font-size:12.5px;color:var(--ink3)}
+.foot{text-align:center;color:var(--ink3);font-size:12px;padding:18px 0 36px}
+</style>
+</head>
+<body>
+
+<div id="loginBox">
+  <h2>管理后台</h2>
+  <p>视频去水印 · 用户与额度管理</p>
+  <input type="password" id="pwd" placeholder="管理密码" autocomplete="current-password">
+  <button id="btnLogin">进入</button>
+  <div class="err" id="loginErr"></div>
+</div>
+
+<div id="app" class="hidden">
+  <header><div class="wrap">
+    <div class="logo"><div class="mark">抖</div><h1>管理后台<small>视频去水印</small></h1></div>
+    <div class="row">
+      <button class="ghost sm" id="btnRefresh">刷新</button>
+      <button class="ghost sm" id="btnLogout">退出</button>
+    </div>
+  </div></header>
+
+  <main class="wrap">
+    <div class="tabs">
+      <div class="tab on" data-tab="overview">概览</div>
+      <div class="tab" data-tab="users">用户</div>
+      <div class="tab" data-tab="codes">邀请码</div>
+      <div class="tab" data-tab="usage">用量流水</div>
+    </div>
+
+    <section id="tab-overview">
+      <div class="stats" id="statGrid"></div>
+      <div class="card" style="margin-top:14px">
+        <div class="row" style="justify-content:space-between;margin-bottom:10px">
+          <b style="font-size:14px">最近用量</b>
+          <span style="font-size:12px;color:var(--ink3)">只显示最近 10 条，完整流水去「用量流水」</span>
+        </div>
+        <div class="tbl-wrap"><table id="recentTbl"></table></div>
+      </div>
+    </section>
+
+    <section id="tab-users" class="hidden">
+      <div class="card">
+        <div class="row" style="margin-bottom:12px">
+          <input id="userQ" placeholder="按邮箱搜索" style="flex:1;min-width:180px;max-width:280px">
+          <button id="btnSearch">搜索</button>
+        </div>
+        <div class="tbl-wrap"><table id="userTbl"></table></div>
+        <div class="pager" id="userPager"></div>
+      </div>
+    </section>
+
+    <section id="tab-codes" class="hidden">
+      <div class="card">
+        <div class="row" style="align-items:flex-end">
+          <div><div style="font-size:12px;color:var(--ink3);margin-bottom:4px">额度</div>
+            <input id="genQuota" type="number" value="100" min="1" style="width:100px"></div>
+          <div><div style="font-size:12px;color:var(--ink3);margin-bottom:4px">数量</div>
+            <input id="genCount" type="number" value="5" min="1" max="200" style="width:90px"></div>
+          <div><div style="font-size:12px;color:var(--ink3);margin-bottom:4px">有效期(天)</div>
+            <input id="genDays" type="number" value="365" min="0" style="width:110px"></div>
+          <div style="flex:1;min-width:140px"><div style="font-size:12px;color:var(--ink3);margin-bottom:4px">备注</div>
+            <input id="genNote" placeholder="比如 客户张三" style="width:100%"></div>
+          <button id="btnGen">生成</button>
+        </div>
+        <div id="genResult" style="margin-top:10px;font-size:13px"></div>
+      </div>
+      <div class="card">
+        <div class="tbl-wrap"><table id="codeTbl"></table></div>
+        <div class="pager" id="codePager"></div>
+      </div>
+    </section>
+
+    <section id="tab-usage" class="hidden">
+      <div class="card">
+        <div class="tbl-wrap"><table id="usageTbl"></table></div>
+      </div>
+    </section>
+  </main>
+  <div class="foot">仅限本人使用 · 数据来自 SQLite，实时读写</div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => { const d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; };
+
+async function api(path, body) {
+  const opt = body === undefined ? {} : {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
+  };
+  const r = await fetch(path, opt);
+  let j = {};
+  try { j = await r.json(); } catch (e) { j = { ok: false, error: 'HTTP ' + r.status }; }
+  if (r.status === 401) { showLogin(); throw new Error(j.error || '未登录'); }
+  return j;
+}
+
+function showLogin() {
+  $('app').classList.add('hidden');
+  $('loginBox').classList.remove('hidden');
+}
+
+$('btnLogin').onclick = async () => {
+  const pwd = $('pwd').value.trim();
+  if (!pwd) { $('loginErr').textContent = '请输入密码'; return; }
+  $('btnLogin').disabled = true;
+  try {
+    const r = await api('/api/admin/login', { password: pwd });
+    if (!r.ok) { $('loginErr').textContent = r.error || '登录失败'; return; }
+    $('loginErr').textContent = '';
+    $('loginBox').classList.add('hidden');
+    $('app').classList.remove('hidden');
+    loadOverview();
+  } catch (e) {
+    $('loginErr').textContent = e.message;
+  } finally { $('btnLogin').disabled = false; }
+};
+$('pwd').addEventListener('keydown', e => { if (e.key === 'Enter') $('btnLogin').click(); });
+
+$('btnLogout').onclick = async () => {
+  await api('/api/admin/logout', {});
+  showLogin();
+};
+$('btnRefresh').onclick = () => refreshCurrent();
+
+/* ---------- 标签切换 ---------- */
+let curTab = 'overview';
+document.querySelectorAll('.tab').forEach(t => {
+  t.onclick = () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('on'));
+    t.classList.add('on');
+    curTab = t.dataset.tab;
+    ['overview', 'users', 'codes', 'usage'].forEach(k => {
+      $('tab-' + k).classList.toggle('hidden', k !== curTab);
+    });
+    refreshCurrent();
+  };
+});
+
+function refreshCurrent() {
+  if (curTab === 'overview') loadOverview();
+  else if (curTab === 'users') loadUsers(1);
+  else if (curTab === 'codes') loadCodes(1);
+  else loadUsage();
+}
+
+/* ---------- 概览 ---------- */
+async function loadOverview() {
+  const r = await api('/api/admin/overview');
+  if (!r.ok) return;
+  const d = r.data;
+  const cards = [
+    ['注册用户', d.users, '人'],
+    ['今日新增', d.new_today, '人'],
+    ['近 7 日活跃', d.active_7d, '人'],
+    ['邀请码', d.codes_used + ' / ' + d.codes_total, '已用/总数'],
+    ['今日调用', d.calls_today, '次'],
+    ['未消耗额度', d.balance_sum, '次'],
+  ];
+  $('statGrid').innerHTML = cards.map(([k, v, u]) =>
+    '<div class="stat"><div class="k">' + k + '</div><div class="v">' + v +
+    '<small>' + u + '</small></div></div>').join('');
+
+  const u = await api('/api/admin/usage?limit=10');
+  if (u.ok) renderUsage($('recentTbl'), u.data);
+}
+
+/* ---------- 用户 ---------- */
+let userPage = 1;
+async function loadUsers(page) {
+  userPage = page || userPage;
+  const r = await api('/api/admin/users?q=' + encodeURIComponent($('userQ').value.trim()) + '&page=' + userPage);
+  if (!r.ok) return;
+  const { rows, total, size } = r.data;
+  const tbl = $('userTbl');
+  if (!rows.length) { tbl.innerHTML = '<tr><td class="empty">还没有用户</td></tr>'; }
+  else {
+    tbl.innerHTML = '<tr><th>邮箱</th><th>余额</th><th>累计消耗</th><th>状态</th><th>注册时间</th><th>最近登录</th><th>操作</th></tr>'
+      + rows.map(u => '<tr>'
+        + '<td>' + esc(u.email) + '</td>'
+        + '<td><b>' + u.balance + '</b></td>'
+        + '<td>' + u.spent + '</td>'
+        + '<td>' + (u.status === 'active' ? '<span class="pill">正常</span>' : '<span class="pill off">已封禁</span>') + '</td>'
+        + '<td>' + esc((u.createdAt || '').slice(0, 16)) + '</td>'
+        + '<td>' + esc((u.lastLoginAt || '').slice(0, 16) || '-') + '</td>'
+        + '<td><div class="acts">'
+        + '<button class="ghost sm" data-act="add" data-email="' + esc(u.email) + '">加次数</button>'
+        + '<button class="ghost sm" data-act="sub" data-email="' + esc(u.email) + '">扣次数</button>'
+        + '<button class="' + (u.status === 'active' ? 'danger' : 'ghost') + ' sm" data-act="toggle" data-email="' + esc(u.email) + '" data-status="' + (u.status === 'active' ? 'banned' : 'active') + '">'
+        + (u.status === 'active' ? '封禁' : '解封') + '</button>'
+        + '<button class="ghost sm" data-act="pwd" data-email="' + esc(u.email) + '">改密码</button>'
+        + '</div></td></tr>').join('');
+    bindUserActs();
+  }
+  const pages = Math.max(1, Math.ceil(total / size));
+  $('userPager').innerHTML = '共 ' + total + ' 个用户 · 第 ' + userPage + '/' + pages + ' 页 '
+    + (userPage > 1 ? '<button class="ghost sm" id="upPrev">上一页</button>' : '')
+    + (userPage < pages ? '<button class="ghost sm" id="upNext">下一页</button>' : '');
+  if ($('upPrev')) $('upPrev').onclick = () => loadUsers(userPage - 1);
+  if ($('upNext')) $('upNext').onclick = () => loadUsers(userPage + 1);
+}
+
+function bindUserActs() {
+  $('userTbl').querySelectorAll('button[data-act]').forEach(b => {
+    b.onclick = async () => {
+      const email = b.dataset.email, act = b.dataset.act;
+      if (act === 'add' || act === 'sub') {
+        const raw = prompt((act === 'add' ? '给 ' : '从 ') + email + (act === 'add' ? ' 加多少次数？' : ' 扣多少次数？'), '100');
+        if (raw === null) return;
+        const n = Math.abs(parseInt(raw, 10));
+        if (!n) { alert('请输入正整数'); return; }
+        const r = await api('/api/admin/user/adjust', {
+          email, delta: act === 'add' ? n : -n, note: act === 'add' ? '后台加次数' : '后台扣次数'
+        });
+        if (!r.ok) { alert(r.error); return; }
+        alert(email + ' 现在余额 ' + r.data.balance + ' 次');
+        loadUsers();
+      } else if (act === 'toggle') {
+        const to = b.dataset.status;
+        if (!confirm((to === 'banned' ? '封禁 ' : '解封 ') + email + '？')) return;
+        const r = await api('/api/admin/user/status', { email, status: to });
+        if (!r.ok) { alert(r.error); return; }
+        loadUsers();
+      } else if (act === 'pwd') {
+        const np = prompt('给 ' + email + ' 设置新密码（至少 6 位）');
+        if (!np) return;
+        const r = await api('/api/admin/user/password', { email, password: np });
+        if (!r.ok) { alert(r.error); return; }
+        alert('密码已重置');
+      }
+    };
+  });
+}
+$('btnSearch').onclick = () => loadUsers(1);
+$('userQ').addEventListener('keydown', e => { if (e.key === 'Enter') loadUsers(1); });
+
+/* ---------- 邀请码 ---------- */
+let codePage = 1;
+async function loadCodes(page) {
+  codePage = page || codePage;
+  const r = await api('/api/admin/codes?page=' + codePage);
+  if (!r.ok) return;
+  const rows = r.data.rows;
+  const tbl = $('codeTbl');
+  if (!rows.length) { tbl.innerHTML = '<tr><td class="empty">还没有邀请码</td></tr>'; }
+  else {
+    tbl.innerHTML = '<tr><th class="mono">邀请码</th><th>额度</th><th>状态</th><th>有效期</th><th>备注</th><th>创建时间</th><th>操作</th></tr>'
+      + rows.map(c => '<tr>'
+        + '<td class="mono">' + esc(c.code) + '</td>'
+        + '<td>' + c.quota + '</td>'
+        + '<td>' + (c.used ? '<span class="pill warn">已使用</span>' : '<span class="pill">未使用</span>') + '</td>'
+        + '<td>' + esc((c.expireAt || '长期').slice(0, 10)) + '</td>'
+        + '<td>' + esc(c.note || '-') + '</td>'
+        + '<td>' + esc((c.createdAt || '').slice(0, 16)) + '</td>'
+        + '<td>' + (c.used ? '-' : '<button class="danger sm" data-del="' + esc(c.code) + '">删除</button>') + '</td>'
+        + '</tr>').join('');
+    tbl.querySelectorAll('button[data-del]').forEach(b => {
+      b.onclick = async () => {
+        if (!confirm('删除邀请码 ' + b.dataset.del + '？')) return;
+        const r2 = await api('/api/admin/code/delete', { code: b.dataset.del });
+        if (!r2.ok) { alert(r2.error); return; }
+        loadCodes();
+      };
+    });
+  }
+  $('codePager').innerHTML = '第 ' + codePage + ' 页 '
+    + (codePage > 1 ? '<button class="ghost sm" id="cpPrev">上一页</button>' : '')
+    + '<button class="ghost sm" id="cpNext">下一页</button>';
+  if ($('cpPrev')) $('cpPrev').onclick = () => loadCodes(codePage - 1);
+  if ($('cpNext')) $('cpNext').onclick = () => loadCodes(codePage + 1);
+}
+
+$('btnGen').onclick = async () => {
+  const quota = parseInt($('genQuota').value, 10) || 100;
+  const count = parseInt($('genCount').value, 10) || 1;
+  const expire_days = parseInt($('genDays').value, 10);
+  const note = $('genNote').value.trim();
+  const r = await api('/api/admin/codes/gen', { quota, count, expire_days, note });
+  if (!r.ok) { $('genResult').innerHTML = '<span style="color:var(--danger)">' + esc(r.error) + '</span>'; return; }
+  $('genResult').innerHTML = '已生成 <b>' + r.data.codes.length + '</b> 个码：<span class="mono">'
+    + r.data.codes.map(esc).join('　') + '</span>';
+  loadCodes(1);
+};
+
+/* ---------- 用量 ---------- */
+async function loadUsage() {
+  const r = await api('/api/admin/usage?limit=200');
+  if (!r.ok) return;
+  renderUsage($('usageTbl'), r.data);
+}
+
+function renderUsage(tbl, rows) {
+  if (!rows.length) { tbl.innerHTML = '<tr><td class="empty">还没有调用记录</td></tr>'; return; }
+  tbl.innerHTML = '<tr><th>时间</th><th>用户</th><th>类型</th><th>扣次</th><th>扣后余额</th></tr>'
+    + rows.map(u => '<tr>'
+      + '<td>' + esc(u.createdAt) + '</td>'
+      + '<td>' + esc(u.email) + '</td>'
+      + '<td>' + esc(u.kind) + '</td>'
+      + '<td>' + (u.cost > 0 ? '-' + u.cost : (u.cost < 0 ? '+' + (-u.cost) : '0')) + '</td>'
+      + '<td>' + u.balanceAfter + '</td>'
+      + '</tr>').join('');
+}
+
+/* 启动：先探一下有没有登录态 */
+(async () => {
+  const r = await fetch('/api/admin/overview').then(x => x.json()).catch(() => ({ ok: false }));
+  if (r.ok) {
+    $('loginBox').classList.add('hidden');
+    $('app').classList.remove('hidden');
+    loadOverview();
+  }
+})();
+</script>
+</body>
+</html>

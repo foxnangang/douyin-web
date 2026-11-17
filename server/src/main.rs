@@ -22,7 +22,7 @@ use axum::routing::{get, post};
 use axum::{body::Body, Json, Router};
 use serde::{Deserialize, Serialize};
 use tower_http::cors::{Any, CorsLayer};
-use tower_http::services::ServeDir;
+use tower_http::services::{ServeDir, ServeFile};
 
 use db::Db;
 use douyin::parser::{parse_all, Owner};
@@ -120,6 +120,10 @@ struct AppState {
     internal_token: String,
     /// 未登录试用：ip -> (日期, 当日已用次数)
     trial: Arc<Mutex<HashMap<String, (String, u32)>>>,
+    /// 后台会话：token -> 过期时间戳（秒）。内存态，重启失效。
+    admin_sessions: Arc<Mutex<HashMap<String, i64>>>,
+    /// 后台登录失败计数：ip -> (首次失败时间戳, 次数)
+    admin_fails: Arc<Mutex<HashMap<String, (i64, u32)>>>,
 }
 
 /// 未登录每日可免费解析的次数
@@ -1307,6 +1311,331 @@ async fn ai_rewrite(
     Json(ApiResp::ok(serde_json::json!({ "result": content, "mode": req.mode })))
 }
 
+// ---------- 管理后台 ----------
+
+fn admin_password() -> String {
+    std::env::var("ADMIN_PASSWORD").unwrap_or_default()
+}
+
+fn admin_ok(st: &AppState, headers: &HeaderMap) -> bool {
+    let Some(raw) = headers.get(header::COOKIE).and_then(|v| v.to_str().ok()) else {
+        return false;
+    };
+    let tok = raw
+        .split(';')
+        .map(|p| p.trim())
+        .find_map(|p| p.strip_prefix("dy_admin=").map(|s| s.to_string()));
+    let Some(tok) = tok else { return false };
+    let mut map = st.admin_sessions.lock().unwrap();
+    let now = chrono::Local::now().timestamp();
+    match map.get(&tok).copied() {
+        Some(exp) if exp > now => true,
+        Some(_) => {
+            map.remove(&tok);
+            false
+        }
+        None => false,
+    }
+}
+
+fn admin_guard(st: &AppState, headers: &HeaderMap) -> Option<Response> {
+    if admin_ok(st, headers) {
+        None
+    } else {
+        Some(json_err(StatusCode::UNAUTHORIZED, "请先登录后台"))
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct AdminLoginReq {
+    password: String,
+}
+
+async fn admin_login(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<AdminLoginReq>,
+) -> Response {
+    let pw = admin_password();
+    if pw.is_empty() {
+        return json_err(StatusCode::FORBIDDEN, "后台未启用：先在 PM2 环境里设置 ADMIN_PASSWORD");
+    }
+
+    // 防爆破：同一 IP 五分钟内最多 10 次
+    let ip = client_ip(&headers);
+    let now = chrono::Local::now().timestamp();
+    {
+        let mut fails = st.admin_fails.lock().unwrap();
+        let e = fails.entry(ip.clone()).or_insert((now, 0));
+        if now - e.0 > 300 {
+            *e = (now, 0);
+        }
+        if e.1 >= 10 {
+            return json_err(StatusCode::TOO_MANY_REQUESTS, "尝试太多次，五分钟后再来");
+        }
+        if req.password != pw {
+            e.1 += 1;
+            return json_err(StatusCode::UNAUTHORIZED, "密码不对");
+        }
+    }
+    st.admin_fails.lock().unwrap().remove(&ip);
+
+    let token = db::gen_token();
+    // 后台会话 8 小时，重启即失效（内存态，够用且不落库）
+    st.admin_sessions
+        .lock()
+        .unwrap()
+        .insert(token.clone(), now + 8 * 3600);
+
+    let mut h = HeaderMap::new();
+    let cookie = format!(
+        "dy_admin={token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=28800{}",
+        if is_https(&headers) { "; Secure" } else { "" }
+    );
+    if let Ok(v) = HeaderValue::from_str(&cookie) {
+        h.insert(header::SET_COOKIE, v);
+    }
+    (h, Json(serde_json::json!({ "ok": true }))).into_response()
+}
+
+async fn admin_logout(State(st): State<AppState>, headers: HeaderMap) -> Response {
+    if let Some(raw) = headers.get(header::COOKIE).and_then(|v| v.to_str().ok()) {
+        if let Some(tok) = raw
+            .split(';')
+            .map(|p| p.trim())
+            .find_map(|p| p.strip_prefix("dy_admin=").map(|s| s.to_string()))
+        {
+            st.admin_sessions.lock().unwrap().remove(&tok);
+        }
+    }
+    let mut h = HeaderMap::new();
+    if let Ok(v) = HeaderValue::from_str(&clear_cookie(is_https(&headers)).replace("dy_sid", "dy_admin"))
+    {
+        h.insert(header::SET_COOKIE, v);
+    }
+    (h, Json(serde_json::json!({ "ok": true }))).into_response()
+}
+
+async fn admin_overview(State(st): State<AppState>, headers: HeaderMap) -> Response {
+    if let Some(r) = admin_guard(&st, &headers) {
+        return r;
+    }
+    Json(serde_json::json!({ "ok": true, "data": st.db.overview() })).into_response()
+}
+
+#[derive(Debug, Deserialize)]
+struct AdminUsersQ {
+    #[serde(default)]
+    q: String,
+    #[serde(default)]
+    page: i64,
+}
+
+async fn admin_users(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<AdminUsersQ>,
+) -> Response {
+    if let Some(r) = admin_guard(&st, &headers) {
+        return r;
+    }
+    let size = 20;
+    let page = q.page.max(1);
+    let rows = st.db.list_users(&q.q, size, (page - 1) * size);
+    let total = st.db.count_users(&q.q);
+    Json(serde_json::json!({
+        "ok": true,
+        "data": { "rows": rows, "total": total, "page": page, "size": size }
+    }))
+    .into_response()
+}
+
+#[derive(Debug, Deserialize)]
+struct AdjustReq {
+    email: String,
+    delta: i64,
+    #[serde(default)]
+    note: String,
+}
+
+async fn admin_user_adjust(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<AdjustReq>,
+) -> Response {
+    if let Some(r) = admin_guard(&st, &headers) {
+        return r;
+    }
+    if req.delta == 0 {
+        return json_err(StatusCode::BAD_REQUEST, "加减次数不能为 0");
+    }
+    let note = if req.note.trim().is_empty() {
+        "手动调整".to_string()
+    } else {
+        req.note.trim().to_string()
+    };
+    match st.db.adjust_balance(req.email.trim(), req.delta, &note) {
+        Ok((email, bal)) => Json(serde_json::json!({
+            "ok": true, "data": { "email": email, "balance": bal }
+        }))
+        .into_response(),
+        Err(e) => json_err(StatusCode::BAD_REQUEST, &e.text()),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct StatusReq {
+    email: String,
+    status: String,
+}
+
+async fn admin_user_status(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<StatusReq>,
+) -> Response {
+    if let Some(r) = admin_guard(&st, &headers) {
+        return r;
+    }
+    if req.status != "active" && req.status != "banned" {
+        return json_err(StatusCode::BAD_REQUEST, "状态只能是 active 或 banned");
+    }
+    match st.db.set_status(req.email.trim(), &req.status) {
+        Ok(()) => Json(serde_json::json!({ "ok": true })).into_response(),
+        Err(e) => json_err(StatusCode::BAD_REQUEST, &e.text()),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct PwdReq {
+    email: String,
+    password: String,
+}
+
+async fn admin_user_password(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<PwdReq>,
+) -> Response {
+    if let Some(r) = admin_guard(&st, &headers) {
+        return r;
+    }
+    if req.password.len() < 6 {
+        return json_err(StatusCode::BAD_REQUEST, "密码至少 6 位");
+    }
+    let hash = match hash_password(&req.password) {
+        Ok(h) => h,
+        Err(e) => return json_err(StatusCode::INTERNAL_SERVER_ERROR, &e),
+    };
+    match st.db.set_password(req.email.trim(), &hash) {
+        Ok(()) => Json(serde_json::json!({ "ok": true })).into_response(),
+        Err(e) => json_err(StatusCode::BAD_REQUEST, &e.text()),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct CodesQ {
+    #[serde(default)]
+    page: i64,
+}
+
+async fn admin_codes(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<CodesQ>,
+) -> Response {
+    if let Some(r) = admin_guard(&st, &headers) {
+        return r;
+    }
+    let size = 30;
+    let page = q.page.max(1);
+    let rows = st.db.list_codes(size, (page - 1) * size);
+    Json(serde_json::json!({ "ok": true, "data": { "rows": rows, "page": page } })).into_response()
+}
+
+#[derive(Debug, Deserialize)]
+struct GenCodeReq {
+    #[serde(default = "default_quota")]
+    quota: i64,
+    #[serde(default = "default_count")]
+    count: i64,
+    #[serde(default)]
+    note: String,
+    #[serde(default = "default_expire")]
+    expire_days: i64,
+}
+
+fn default_quota() -> i64 {
+    100
+}
+fn default_count() -> i64 {
+    1
+}
+fn default_expire() -> i64 {
+    365
+}
+
+async fn admin_code_gen(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<GenCodeReq>,
+) -> Response {
+    if let Some(r) = admin_guard(&st, &headers) {
+        return r;
+    }
+    let count = req.count.clamp(1, 200);
+    let quota = req.quota.clamp(1, 100_000);
+    let mut made = Vec::new();
+    for _ in 0..count {
+        match st.db.issue_code(quota, req.note.trim(), "", req.expire_days.clamp(0, 3650)) {
+            Ok(code) => made.push(code),
+            Err(e) => return json_err(StatusCode::INTERNAL_SERVER_ERROR, &e.text()),
+        }
+    }
+    Json(serde_json::json!({ "ok": true, "data": { "codes": made } })).into_response()
+}
+
+#[derive(Debug, Deserialize)]
+struct DelCodeReq {
+    code: String,
+}
+
+async fn admin_code_del(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<DelCodeReq>,
+) -> Response {
+    if let Some(r) = admin_guard(&st, &headers) {
+        return r;
+    }
+    match st.db.delete_code(req.code.trim()) {
+        Ok(()) => Json(serde_json::json!({ "ok": true })).into_response(),
+        Err(e) => json_err(StatusCode::BAD_REQUEST, &e.text()),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct UsageQ {
+    #[serde(default = "default_usage_limit")]
+    limit: i64,
+}
+
+fn default_usage_limit() -> i64 {
+    100
+}
+
+async fn admin_usage(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<UsageQ>,
+) -> Response {
+    if let Some(r) = admin_guard(&st, &headers) {
+        return r;
+    }
+    let rows = st.db.recent_usage(q.limit.clamp(1, 500));
+    Json(serde_json::json!({ "ok": true, "data": rows })).into_response()
+}
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt()
@@ -1332,6 +1661,8 @@ async fn main() {
         db: Arc::new(db),
         internal_token,
         trial: Arc::new(Mutex::new(HashMap::new())),
+        admin_sessions: Arc::new(Mutex::new(HashMap::new())),
+        admin_fails: Arc::new(Mutex::new(HashMap::new())),
     };
 
     let cors = CorsLayer::new()
@@ -1358,10 +1689,23 @@ async fn main() {
         .route("/api/auth/me", get(auth_me))
         .route("/api/auth/redeem", post(auth_redeem))
         .route("/internal/issue-code", post(issue_code_internal))
+        .route("/api/admin/login", post(admin_login))
+        .route("/api/admin/logout", post(admin_logout))
+        .route("/api/admin/overview", get(admin_overview))
+        .route("/api/admin/users", get(admin_users))
+        .route("/api/admin/user/adjust", post(admin_user_adjust))
+        .route("/api/admin/user/status", post(admin_user_status))
+        .route("/api/admin/user/password", post(admin_user_password))
+        .route("/api/admin/codes", get(admin_codes))
+        .route("/api/admin/codes/gen", post(admin_code_gen))
+        .route("/api/admin/code/delete", post(admin_code_del))
+        .route("/api/admin/usage", get(admin_usage))
         .with_state(state)
         .layer(cors);
 
     let app = Router::new()
+        // /admin 直接给后台页面，不用记 admin.html
+        .route_service("/admin", ServeFile::new("public/admin.html"))
         .nest_service("/", ServeDir::new("public"))
         .merge(api);
 

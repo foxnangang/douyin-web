@@ -211,6 +211,29 @@ python3 admin.py ban --email a@b.com
 python3 admin.py stats               # 码用量 + 最近扣费流水
 ```
 
+### Web 管理后台（2026-11-18）
+
+访问 `https://dy.foxnan.com/admin`，用 `ADMIN_PASSWORD` 登录（不是用户密码）。
+
+```bash
+export ADMIN_PASSWORD=<自己起一个强密码>
+pm2 restart dy-web --update-env && pm2 save
+```
+
+| 页面 | 能做什么 |
+|---|---|
+| 概览 | 注册用户 / 今日新增 / 近 7 日活跃 / 邀请码已用数与总数 / 今日调用次数 / 未消耗额度合计 + 最近 10 条用量 |
+| 用户 | 按邮箱搜、分页；加次数、扣次数、封禁/解封、重置密码 |
+| 邀请码 | 批量生成（额度/数量/有效期/备注）、查看状态、删除未使用的码 |
+| 用量流水 | 最近 200 条扣费记录（含后台调整） |
+
+实现要点：
+
+- 后台会话放内存（`HashMap<token, 过期时间>`），8 小时过期，**重启即全部失效**——够用且不落库
+- 登录失败同一 IP 5 分钟内最多 10 次，防爆破
+- 页面在 `public/admin.html`，`/admin` 由 `ServeFile` 直出；接口全在 `/api/admin/*`，未登录一律 401
+- 后台加减次数会写 `usage_log`（kind=`admin:备注`），可追溯
+
 ### 博客付款后自动发码（待接）
 
 博客（WordPress + fnic 插件）在同一台机器，付款成功生成 `FN-` 码的那一步追加一次调用即可：
