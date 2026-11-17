@@ -367,6 +367,11 @@ async function loadTrend() {
   const totalCalls = rows.reduce((a, b) => a + b.calls, 0);
   const totalUsers = rows.reduce((a, b) => a + b.users, 0);
   $('trendHint').textContent = '7 天合计 ' + totalCalls + ' 次调用 · 新增 ' + totalUsers + ' 人';
+  if (totalCalls === 0) {
+    $('trendBox').innerHTML = '<div style="width:100%;text-align:center;color:var(--ink3);font-size:12.5px;align-self:center">'
+      + '这 7 天还没有调用记录</div>';
+    return;
+  }
   $('trendBox').innerHTML = rows.map(x => {
     const h = Math.round(x.calls / max * 100);
     return '<div class="col">'
@@ -387,9 +392,10 @@ async function loadUsers(page) {
   const tbl = $('userTbl');
   if (!rows.length) { tbl.innerHTML = '<tr><td class="empty">还没有用户</td></tr>'; }
   else {
-    tbl.innerHTML = '<tr><th>邮箱</th><th>余额</th><th>累计消耗</th><th>状态</th><th>注册时间</th><th>最近登录</th><th>操作</th></tr>'
+    tbl.innerHTML = '<tr><th>邮箱</th><th>昵称</th><th>余额</th><th>累计消耗</th><th>状态</th><th>注册时间</th><th>最近登录</th><th>操作</th></tr>'
       + rows.map(u => '<tr>'
         + '<td>' + esc(u.email) + '</td>'
+        + '<td>' + esc(u.nickname || '-') + '</td>'
         + '<td><b>' + u.balance + '</b></td>'
         + '<td>' + u.spent + '</td>'
         + '<td>' + (u.status === 'active' ? '<span class="pill">正常</span>' : '<span class="pill off">已封禁</span>') + '</td>'

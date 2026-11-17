@@ -237,7 +237,9 @@ pm2 restart dy-web --update-env && pm2 save
 | 用户 | 按邮箱搜、分页；加次数、扣次数、封禁/解封、重置密码 |
 | 邀请码 | 批量生成（额度/数量/有效期/备注）、查看状态、删除未使用的码 |
 | 用量流水 | 最近 200 条扣费记录（含后台调整） |
-| 设置 | 修改管理密码（argon2 哈希存 `settings` 表，改完即时生效、当前会话不掉线） |
+| 设置 | 修改管理密码（argon2 哈希存 `settings` 表）+ 数据库备份列表与「立即备份」 |
+
+概览页还有近 7 天调用柱状图；用户页支持昵称列、按邮箱/昵称搜索、导出 CSV；邀请码页可一键复制未用码；流水页可按邮箱/昵称过滤。侧栏底部有「打开前台」。
 
 **管理密码的取值顺序**：库里 `settings.admin_password_hash` → 没有则用环境变量 `ADMIN_PASSWORD`（明文）。
 忘记密码时执行 `python3 admin.py reset-admin-password`，会删掉库里的自定义密码，回落到环境变量那个值。
@@ -263,6 +265,26 @@ wp_remote_post('http://127.0.0.1:8094/internal/issue-code', [
 
 返回 `{"ok":true,"data":{"code":"DY-...","reused":false}}`，把 code 一并写进发货邮件即可。
 用 `order_id` 做幂等键，重复回调不会重复发码。
+
+## 数据库备份（2026-11-18）
+
+`backup.py`：用 sqlite3 在线备份 API（不是 cp，WAL 模式下也完整）→ `PRAGMA integrity_check` 校验 → gzip → 保留最近 N 份。
+
+```bash
+python3 backup.py                    # 手动备一次
+python3 backup.py --keep 30          # 保留 30 份
+# 定时（已加进 crontab，每天 03:45）
+45 3 * * * cd /www/wwwroot/dy.foxnan.com && /usr/bin/python3 backup.py >> logs/backup.log 2>&1
+```
+
+- 输出目录 `backups/app-YYYYmmdd-HHMMSS.db.gz`（文件名带秒，同一分钟连备不会互相覆盖）
+- 默认保留 14 份，约两周
+- 恢复：`gunzip -c backups/xxx.db.gz > data/app.db`，然后 `pm2 restart dy-web`
+- 后台「设置」页能看到列表，也能点「立即备份」（走同一个脚本）
+
+## 用户昵称
+
+`users.nickname`，老库启动时自动 `ALTER TABLE` 补列。注册时默认取邮箱前缀；用户点右上角昵称芯片 → 「我的」→ 改昵称（1~16 字）。后台用户列表显示昵称，搜索同时匹配邮箱和昵称。
 
 ## 功能
 
