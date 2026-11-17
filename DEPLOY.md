@@ -165,6 +165,67 @@ curl -X POST http://127.0.0.1:8097/warmup   # 预下载模型，约 23 秒
 
 真正的瓶颈不是钱，是**并发**：ASR 单实例串行（`_run_lock`），4 核机器同时来 3 个转写请求就得排队。
 
+## 账号 / 邀请码 / 额度（2026-11-18）
+
+SQLite 单文件，不用另起数据库服务。库路径由 `DB_PATH` 决定，默认 `data/app.db`（相对启动目录）。
+
+| 表 | 用途 |
+|---|---|
+| `users` | 邮箱 + argon2 密码哈希 + 余额 + 状态 |
+| `invite_codes` | 码、额度、备注、订单号、有效期、核销人与时间 |
+| `sessions` | 登录会话（30 天，HttpOnly Cookie `dy_sid`） |
+| `usage_log` | 每次扣费流水，对账用 |
+
+接口：
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| POST | `/api/auth/register` | 邀请码 + 邮箱 + 密码，一次性完成注册并登录 |
+| POST | `/api/auth/login` | 邮箱 + 密码 |
+| POST | `/api/auth/logout` | 清 Cookie |
+| GET | `/api/auth/me` | 返回当前邮箱与余额，未登录返回 `ok:false` |
+| POST | `/api/auth/redeem` | 老用户充额度（核销新码，余额叠加） |
+| POST | `/internal/issue-code` | **内网发码**，需 `X-Internal-Token` 头，同 `order_id` 幂等 |
+
+扣费权重（`quota_cost()`）：解析 1 / 批量 5 / 文案提取 3 / AI 1 / 配音 0 / 图集打包 0 / 下载 0。
+
+未登录：每天 2 次单链接解析（按 IP，内存计数，重启清零），其余接口一律要求登录。
+
+### 环境变量
+
+```bash
+export DB_PATH=/www/wwwroot/dy.foxnan.com/data/app.db
+export INTERNAL_TOKEN=<32 位随机 hex>     # 不设则内网发码接口关闭
+pm2 restart dy-web --update-env && pm2 save
+```
+
+### 后台脚本
+
+```bash
+cd /www/wwwroot/dy.foxnan.com
+python3 admin.py gen-code --quota 100 --count 5 --note 内测
+python3 admin.py list-codes          # 看哪些码还没用
+python3 admin.py list-users          # 看用户和余额
+python3 admin.py grant --email a@b.com --quota 100
+python3 admin.py ban --email a@b.com
+python3 admin.py stats               # 码用量 + 最近扣费流水
+```
+
+### 博客付款后自动发码（待接）
+
+博客（WordPress + fnic 插件）在同一台机器，付款成功生成 `FN-` 码的那一步追加一次调用即可：
+
+```php
+wp_remote_post('http://127.0.0.1:8094/internal/issue-code', [
+  'timeout' => 8,
+  'headers' => ['Content-Type' => 'application/json', 'X-Internal-Token' => DY_TOKEN],
+  'body'    => wp_json_encode(['quota' => 100, 'order_id' => $order_id, 'note' => '博客订单']),
+]);
+```
+
+返回 `{"ok":true,"data":{"code":"DY-...","reused":false}}`，把 code 一并写进发货邮件即可。
+用 `order_id` 做幂等键，重复回调不会重复发码。
+
 ## 功能
 
 1. **单链接解析**：粘贴作品链接 → 返回无水印直链（视频/图集/实况），可在线打开或下载

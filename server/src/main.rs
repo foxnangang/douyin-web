@@ -2,15 +2,19 @@
 //! 复用 douyin-downloader 的 a_bogus 签名与接口层，对外提供 HTTP JSON API。
 //! 前端静态资源由 public/ 目录提供，Nginx 可反代本服务。
 
+mod db;
 mod douyin;
 mod error;
 mod models;
 mod paths;
 mod zipstore;
 
+use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
+use argon2::password_hash::{rand_core::OsRng, SaltString};
+use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use axum::extract::{Query, State};
 use axum::http::{header, HeaderMap, HeaderValue, Method, StatusCode};
 use axum::response::{IntoResponse, Response};
@@ -20,6 +24,7 @@ use serde::{Deserialize, Serialize};
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::ServeDir;
 
+use db::Db;
 use douyin::parser::{parse_all, Owner};
 use douyin::DouyinClient;
 use error::AppError;
@@ -110,11 +115,349 @@ fn to_rows(profile: &ProfileInfo, list: &[serde_json::Value]) -> Vec<TaskRow> {
 #[derive(Clone)]
 struct AppState {
     client: Arc<DouyinClient>,
+    db: Arc<Db>,
+    /// 内网发码口令（博客付款成功后回调用），空值则关闭该接口
+    internal_token: String,
+    /// 未登录试用：ip -> (日期, 当日已用次数)
+    trial: Arc<Mutex<HashMap<String, (String, u32)>>>,
+}
+
+/// 未登录每日可免费解析的次数
+const TRIAL_PER_DAY: u32 = 2;
+
+/// 各操作扣的额度（按真实资源消耗定，ASR 最贵）
+fn quota_cost(kind: &str) -> i64 {
+    match kind {
+        "parse" => 1,    // 单链接解析
+        "fetch" => 5,    // 主页/点赞批量，一次几百条
+        "asr" => 3,      // 语音转文字，占 CPU 20~30 秒
+        "ai" => 1,       // 大模型改写
+        _ => 1,
+    }
 }
 
 fn mode_from(s: &str) -> Result<FetchMode, AppError> {
     FetchMode::from_slug(s)
         .ok_or_else(|| AppError::msg(format!("未知模式: {s}，可用 single/post/favorite/collect")))
+}
+
+// ---------- 账号 / 会话 / 额度 ----------
+
+const COOKIE_NAME: &str = "dy_sid";
+
+fn cookie_token(headers: &HeaderMap) -> Option<String> {
+    let raw = headers.get(header::COOKIE)?.to_str().ok()?;
+    for part in raw.split(';') {
+        let p = part.trim();
+        if let Some(v) = p.strip_prefix("dy_sid=") {
+            if !v.is_empty() {
+                return Some(v.to_string());
+            }
+        }
+    }
+    None
+}
+
+fn client_ip(headers: &HeaderMap) -> String {
+    for key in ["x-real-ip", "x-forwarded-for"] {
+        if let Some(v) = headers.get(key).and_then(|v| v.to_str().ok()) {
+            let first = v.split(',').next().unwrap_or("").trim();
+            if !first.is_empty() {
+                return first.to_string();
+            }
+        }
+    }
+    "unknown".to_string()
+}
+
+fn is_https(headers: &HeaderMap) -> bool {
+    headers
+        .get("x-forwarded-proto")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.eq_ignore_ascii_case("https"))
+        .unwrap_or(false)
+}
+
+fn session_cookie(token: &str, secure: bool) -> String {
+    let mut s = format!("{COOKIE_NAME}={token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000");
+    if secure {
+        s.push_str("; Secure");
+    }
+    s
+}
+
+fn clear_cookie(secure: bool) -> String {
+    let mut s = format!("{COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0");
+    if secure {
+        s.push_str("; Secure");
+    }
+    s
+}
+
+fn json_err(code: StatusCode, msg: &str) -> Response {
+    (
+        code,
+        Json(serde_json::json!({ "ok": false, "error": msg })),
+    )
+        .into_response()
+}
+
+fn require_user(st: &AppState, headers: &HeaderMap) -> Result<db::User, Response> {
+    let Some(tok) = cookie_token(headers) else {
+        return Err(json_err(StatusCode::UNAUTHORIZED, "请先登录"));
+    };
+    match st.db.user_by_token(&tok) {
+        Some(u) if u.status == "active" => Ok(u),
+        Some(_) => Err(json_err(StatusCode::FORBIDDEN, "账号已被停用")),
+        None => Err(json_err(StatusCode::UNAUTHORIZED, "登录已过期，请重新登录")),
+    }
+}
+
+/// 未登录试用：按 IP 每天 TRIAL_PER_DAY 次，仅限单链接解析。
+fn try_trial(st: &AppState, headers: &HeaderMap) -> bool {
+    let ip = client_ip(headers);
+    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+    let mut map = st.trial.lock().unwrap();
+    let entry = map.entry(ip).or_insert((today.clone(), 0));
+    if entry.0 != today {
+        *entry = (today, 0);
+    }
+    if entry.1 >= TRIAL_PER_DAY {
+        return false;
+    }
+    entry.1 += 1;
+    true
+}
+
+/// 鉴权 + 扣额度，返回 Err 时给前端一句人话。
+/// 用字符串而不是 Response，是为了让业务 handler 继续返回 Json<ApiResp<..>>。
+fn gate(st: &AppState, headers: &HeaderMap, kind: &str) -> Result<db::User, String> {
+    let user = require_user(st, headers)
+        .map_err(|_| "请先登录后再用（右上角登录 / 注册）".to_string())?;
+    match st.db.charge(user.id, kind, quota_cost(kind)) {
+        Ok(Ok(_)) => Ok(user),
+        Ok(Err(bal)) => Err(format!(
+            "额度不足（剩余 {bal} 次）。去右上角充一个邀请码继续用"
+        )),
+        Err(e) => Err(e.text()),
+    }
+}
+
+fn hash_password(pw: &str) -> Result<String, String> {
+    let salt = SaltString::generate(&mut OsRng);
+    Argon2::default()
+        .hash_password(pw.as_bytes(), &salt)
+        .map(|h| h.to_string())
+        .map_err(|e| format!("密码处理失败：{e}"))
+}
+
+fn verify_password(pw: &str, hash: &str) -> bool {
+    match PasswordHash::new(hash) {
+        Ok(parsed) => Argon2::default()
+            .verify_password(pw.as_bytes(), &parsed)
+            .is_ok(),
+        Err(_) => false,
+    }
+}
+
+// ---------- 账号接口 ----------
+
+#[derive(Debug, Deserialize)]
+struct RegisterReq {
+    code: String,
+    email: String,
+    password: String,
+}
+
+async fn auth_register(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<RegisterReq>,
+) -> Response {
+    let email = req.email.trim().to_lowercase();
+    let code = req.code.trim().to_uppercase();
+    if !db::valid_email(&email) {
+        return json_err(StatusCode::BAD_REQUEST, "邮箱格式不对");
+    }
+    if req.password.len() < 6 {
+        return json_err(StatusCode::BAD_REQUEST, "密码至少 6 位");
+    }
+    if code.is_empty() {
+        return json_err(StatusCode::BAD_REQUEST, "请填邀请码");
+    }
+
+    let hash = match hash_password(&req.password) {
+        Ok(h) => h,
+        Err(e) => return json_err(StatusCode::INTERNAL_SERVER_ERROR, &e),
+    };
+
+    match st.db.register(&email, &hash, &code) {
+        Ok(user) => {
+            let token = db::gen_token();
+            if let Err(e) = st.db.create_session(user.id, &token, &client_ip(&headers)) {
+                return json_err(StatusCode::INTERNAL_SERVER_ERROR, &e.text());
+            }
+            let cookie = session_cookie(&token, is_https(&headers));
+            let mut h = HeaderMap::new();
+            if let Ok(v) = HeaderValue::from_str(&cookie) {
+                h.insert(header::SET_COOKIE, v);
+            }
+            (
+                h,
+                Json(serde_json::json!({
+                    "ok": true,
+                    "data": { "email": user.email, "balance": user.balance }
+                })),
+            )
+                .into_response()
+        }
+        Err(e) => json_err(StatusCode::BAD_REQUEST, &e.text()),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct LoginReq {
+    email: String,
+    password: String,
+}
+
+async fn auth_login(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<LoginReq>,
+) -> Response {
+    let email = req.email.trim().to_lowercase();
+    let Some((id, hash, status, balance)) = st.db.find_login(&email) else {
+        return json_err(StatusCode::UNAUTHORIZED, "邮箱或密码不对");
+    };
+    if status != "active" {
+        return json_err(StatusCode::FORBIDDEN, "账号已被停用");
+    }
+    if !verify_password(&req.password, &hash) {
+        return json_err(StatusCode::UNAUTHORIZED, "邮箱或密码不对");
+    }
+    let token = db::gen_token();
+    if let Err(e) = st.db.create_session(id, &token, &client_ip(&headers)) {
+        return json_err(StatusCode::INTERNAL_SERVER_ERROR, &e.text());
+    }
+    let cookie = session_cookie(&token, is_https(&headers));
+    let mut h = HeaderMap::new();
+    if let Ok(v) = HeaderValue::from_str(&cookie) {
+        h.insert(header::SET_COOKIE, v);
+    }
+    (
+        h,
+        Json(serde_json::json!({
+            "ok": true,
+            "data": { "email": email, "balance": balance }
+        })),
+    )
+        .into_response()
+}
+
+async fn auth_logout(State(st): State<AppState>, headers: HeaderMap) -> Response {
+    if let Some(tok) = cookie_token(&headers) {
+        st.db.drop_session(&tok);
+    }
+    let cookie = clear_cookie(is_https(&headers));
+    let mut h = HeaderMap::new();
+    if let Ok(v) = HeaderValue::from_str(&cookie) {
+        h.insert(header::SET_COOKIE, v);
+    }
+    (h, Json(serde_json::json!({ "ok": true }))).into_response()
+}
+
+async fn auth_me(State(st): State<AppState>, headers: HeaderMap) -> Response {
+    match require_user(&st, &headers) {
+        Ok(u) => Json(serde_json::json!({
+            "ok": true,
+            "data": { "email": u.email, "balance": u.balance }
+        }))
+        .into_response(),
+        Err(_) => Json(serde_json::json!({ "ok": false, "data": null })).into_response(),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct RedeemReq {
+    code: String,
+}
+
+/// 已登录用户充额度（老用户买新码）。
+async fn auth_redeem(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<RedeemReq>,
+) -> Response {
+    let user = match require_user(&st, &headers) {
+        Ok(u) => u,
+        Err(e) => return e,
+    };
+    let code = req.code.trim().to_uppercase();
+    if code.is_empty() {
+        return json_err(StatusCode::BAD_REQUEST, "请填邀请码");
+    }
+    match st.db.redeem(user.id, &code) {
+        Ok(balance) => Json(serde_json::json!({
+            "ok": true,
+            "data": { "email": user.email, "balance": balance }
+        }))
+        .into_response(),
+        Err(e) => json_err(StatusCode::BAD_REQUEST, &e.text()),
+    }
+}
+
+// ---------- 内网发码（博客付款成功后调用） ----------
+
+#[derive(Debug, Deserialize)]
+struct IssueReq {
+    #[serde(default)]
+    quota: Option<i64>,
+    #[serde(default)]
+    note: Option<String>,
+    #[serde(default)]
+    order_id: Option<String>,
+    #[serde(default)]
+    expire_days: Option<i64>,
+}
+
+/// 只有带对内网口令才可用；同一 order_id 重复调用返回同一个码（幂等）。
+async fn issue_code_internal(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<IssueReq>,
+) -> Response {
+    let got = headers
+        .get("x-internal-token")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    if st.internal_token.is_empty() || got != st.internal_token {
+        return json_err(StatusCode::FORBIDDEN, "forbidden");
+    }
+
+    let order_id = req.order_id.unwrap_or_default();
+    if !order_id.is_empty() {
+        if let Some(existing) = st.db.code_by_order(&order_id) {
+            return Json(serde_json::json!({
+                "ok": true,
+                "data": { "code": existing, "reused": true }
+            }))
+            .into_response();
+        }
+    }
+
+    let quota = req.quota.unwrap_or(100).clamp(1, 100_000);
+    let note = req.note.unwrap_or_default();
+    let expire_days = req.expire_days.unwrap_or(365).clamp(0, 3650);
+
+    match st.db.issue_code(quota, &note, &order_id, expire_days) {
+        Ok(code) => Json(serde_json::json!({
+            "ok": true,
+            "data": { "code": code, "quota": quota, "reused": false }
+        }))
+        .into_response(),
+        Err(e) => json_err(StatusCode::INTERNAL_SERVER_ERROR, &e.text()),
+    }
 }
 
 // ---------- 处理函数 ----------
@@ -126,8 +469,12 @@ async fn health() -> impl IntoResponse {
 /// 单链接解析：返回作品直链与元数据（无水印源地址）。
 async fn parse(
     State(st): State<AppState>,
+    headers: HeaderMap,
     Json(req): Json<ParseReq>,
 ) -> Json<ApiResp<ParseData>> {
+    if let Err(msg) = gate(&st, &headers, "parse") {
+        return Json(ApiResp::err(msg));
+    }
     let url = req.url.trim();
     if url.is_empty() {
         return Json(ApiResp::err("请粘贴作品链接"));
@@ -150,8 +497,12 @@ async fn parse(
 /// 批量抓取：主页 / 点赞 / 收藏。
 async fn fetch(
     State(st): State<AppState>,
+    headers: HeaderMap,
     Json(req): Json<FetchReq>,
 ) -> Json<ApiResp<ParseData>> {
+    if let Err(msg) = gate(&st, &headers, "fetch") {
+        return Json(ApiResp::err(msg));
+    }
     let mode = match mode_from(&req.mode) {
         Ok(m) => m,
         Err(e) => return Json(ApiResp::err(e.to_string())),
@@ -435,8 +786,19 @@ struct QuickReq {
 /// 只接受抖音/主流平台分享短链，结果映射成前端统一的作品结构。
 async fn quick_parse(
     State(st): State<AppState>,
+    headers: HeaderMap,
     Query(q): Query<QuickReq>,
 ) -> Json<ApiResp<serde_json::Value>> {
+    // 登录用户按额度扣；未登录给每天 TRIAL_PER_DAY 次试用
+    match gate(&st, &headers, "parse") {
+        Ok(_) => {}
+        Err(msg) => {
+            let anonymous = cookie_token(&headers).is_none();
+            if !(anonymous && try_trial(&st, &headers)) {
+                return Json(ApiResp::err(msg));
+            }
+        }
+    }
     if q.url.trim().is_empty() {
         return Json(ApiResp::err("请粘贴分享链接"));
     }
@@ -745,8 +1107,12 @@ struct AsrReq {
 /// 只接受直链——分享页链接请前端先走 /api/quick-parse 拿 video_url。
 async fn asr_proxy(
     State(st): State<AppState>,
+    headers: HeaderMap,
     Query(q): Query<AsrReq>,
 ) -> Json<ApiResp<serde_json::Value>> {
+    if let Err(msg) = gate(&st, &headers, "asr") {
+        return Json(ApiResp::err(msg));
+    }
     let url = q.url.trim();
     if url.is_empty() {
         return Json(ApiResp::err("缺少视频直链"));
@@ -821,8 +1187,12 @@ fn ai_prompt(mode: &str, text: &str) -> Option<(String, String)> {
 /// 未配置时返回明确提示，不影响其它功能。
 async fn ai_rewrite(
     State(st): State<AppState>,
+    headers: HeaderMap,
     Json(req): Json<AiReq>,
 ) -> Json<ApiResp<serde_json::Value>> {
+    if let Err(msg) = gate(&st, &headers, "ai") {
+        return Json(ApiResp::err(msg));
+    }
     let text = req.text.trim();
     if text.is_empty() {
         return Json(ApiResp::err("请先输入原文"));
@@ -905,8 +1275,20 @@ async fn main() {
         .and_then(|v| v.parse().ok())
         .unwrap_or(8093);
 
+    let db_path = std::env::var("DB_PATH").unwrap_or_else(|_| "data/app.db".into());
+    let db = Db::open(&db_path).expect("failed to open sqlite");
+    tracing::info!("sqlite at {}", db_path);
+
+    let internal_token = std::env::var("INTERNAL_TOKEN").unwrap_or_default();
+    if internal_token.is_empty() {
+        tracing::warn!("INTERNAL_TOKEN 未设置，内网发码接口已关闭");
+    }
+
     let state = AppState {
         client: Arc::new(DouyinClient::new().expect("failed to build douyin client")),
+        db: Arc::new(db),
+        internal_token,
+        trial: Arc::new(Mutex::new(HashMap::new())),
     };
 
     let cors = CorsLayer::new()
@@ -927,6 +1309,12 @@ async fn main() {
         .route("/api/asr", get(asr_proxy))
         .route("/api/ai", post(ai_rewrite))
         .route("/api/quick-parse", get(quick_parse))
+        .route("/api/auth/register", post(auth_register))
+        .route("/api/auth/login", post(auth_login))
+        .route("/api/auth/logout", post(auth_logout))
+        .route("/api/auth/me", get(auth_me))
+        .route("/api/auth/redeem", post(auth_redeem))
+        .route("/internal/issue-code", post(issue_code_internal))
         .with_state(state)
         .layer(cors);
 

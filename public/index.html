@@ -20,6 +20,12 @@ body{background:var(--bg);color:var(--ink);font-size:15px;line-height:1.65;-webk
 
 /* ---------- 顶部 ---------- */
 header{padding:26px 0 18px}
+header .wrap{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.auth{display:flex;align-items:center;gap:7px;flex-shrink:0}
+.user-chip{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink2);
+  background:#fff;border:1px solid var(--line);border-radius:20px;padding:4px 11px;max-width:230px}
+.user-chip em{font-style:normal;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px}
+.user-chip b{color:var(--brand);font-weight:600;white-space:nowrap}
 .brand{display:flex;align-items:center;gap:13px}
 .mark{width:40px;height:40px;border-radius:12px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:600;box-shadow:0 4px 14px rgba(47,107,91,.25)}
 .brand h1{margin:0;font-size:21px;font-weight:600;letter-spacing:.2px}
@@ -123,6 +129,21 @@ footer{text-align:center;font-size:12px;color:var(--ink3);padding:22px 0 40px;li
 footer a{color:var(--brand);text-decoration:none}
 footer a:hover{text-decoration:underline}
 .panel{display:none}.panel.on{display:block}
+
+/* ---------- 登录弹窗 ---------- */
+.mask{position:fixed;inset:0;background:rgba(20,25,23,.45);display:none;align-items:center;justify-content:center;padding:18px;z-index:60}
+.mask.on{display:flex}
+.modal{background:#fff;border-radius:14px;padding:22px;width:100%;max-width:360px;position:relative;box-shadow:0 20px 60px rgba(0,0,0,.22)}
+.modal .x{position:absolute;right:10px;top:8px;background:none;border:none;color:var(--ink3);font-size:20px;padding:4px 8px;border-radius:8px}
+.modal .x:hover{background:var(--bg);box-shadow:none}
+.modal h3{margin:0 0 14px;font-size:16px}
+.mtabs{display:flex;gap:6px;margin-bottom:14px}
+.mtab{font-size:13px;padding:5px 12px;border-radius:20px;border:1px solid var(--line);color:var(--ink2);cursor:pointer;transition:.15s}
+.mtab.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+.modal input{width:100%;margin-bottom:9px}
+.modal .submit{width:100%;margin-top:2px}
+.mhint{font-size:12px;color:var(--ink3);margin:10px 0 0;line-height:1.75}
+.mhint a{color:var(--brand)}
 .dot{width:7px;height:7px;border-radius:50%;background:var(--ink3);display:inline-block}
 .dot.ok{background:var(--brand)}.dot.bad{background:var(--danger)}
 @media(max-width:560px){
@@ -145,6 +166,9 @@ footer a:hover{text-decoration:underline}
       <h1>视频去水印</h1>
       <p class="sub">视频创作者一站式工具箱</p>
     </div>
+  </div>
+  <div class="auth" id="authArea">
+    <button class="ghost sm" id="btnAuthOpen">登录 / 注册</button>
   </div>
 </div></header>
 
@@ -315,6 +339,41 @@ footer a:hover{text-decoration:underline}
   <span style="display:inline-block;margin-top:8px">By <a href="https://foxnan.com" target="_blank" rel="noopener">安卿辰博客</a></span>
 </footer>
 
+<div class="mask" id="authMask">
+  <div class="modal">
+    <button class="x" id="authClose">×</button>
+    <h3 id="authTitle">登录</h3>
+    <div class="mtabs">
+      <div class="mtab on" data-pane="login">登录</div>
+      <div class="mtab" data-pane="register">注册</div>
+      <div class="mtab" data-pane="recharge" id="tabRecharge" style="display:none">充值</div>
+    </div>
+
+    <div id="pane-login">
+      <input type="text" id="loginEmail" placeholder="邮箱">
+      <input type="password" id="loginPass" placeholder="密码">
+      <button class="submit" id="btnLogin">登录</button>
+      <p class="mhint">还没有账号？点上面的「注册」，需要邀请码。</p>
+    </div>
+
+    <div id="pane-register" style="display:none">
+      <input type="text" id="regEmail" placeholder="邮箱">
+      <input type="password" id="regPass" placeholder="密码（至少 6 位）">
+      <input type="text" id="regCode" placeholder="邀请码，形如 DY-XXXX-XXXX-XXXX">
+      <button class="submit" id="btnReg">注册并登录</button>
+      <p class="mhint">没有邀请码？<a href="https://www.foxnan.com/invite-shop" target="_blank" rel="noopener">在这里买一个</a>（100 次 / ¥19）</p>
+    </div>
+
+    <div id="pane-recharge" style="display:none">
+      <input type="text" id="rcCode" placeholder="邀请码">
+      <button class="submit" id="btnRedeem">充值</button>
+      <p class="mhint">充完额度会叠加到当前账号，按次扣：解析 1 次、批量 5 次、转写 3 次、AI 1 次。</p>
+    </div>
+
+    <div class="msg" id="authMsg"></div>
+  </div>
+</div>
+
 <script>
 const $ = id => document.getElementById(id);
 let allLinks = [];
@@ -401,6 +460,7 @@ $('btnQuick').onclick = async e => {
     renderResults(r.data);
     const pf = r.data.platformLabel ? r.data.platformLabel + ' · ' : '';
     showMsg('quickMsg', pf + '解析成功，共 ' + r.data.count + ' 个文件', 'ok');
+    refreshMe();
   } catch (err) {
     showMsg('quickMsg', '请求失败：' + err.message, 'err');
   } finally { setLoading(btn, false, '解析'); }
@@ -419,6 +479,7 @@ $('btnBatch').onclick = async e => {
     if (!r.ok) { showMsg('batchMsg', r.error || '解析失败', 'err'); return; }
     renderResults(r.data);
     showMsg('batchMsg', '解析完成，共 ' + r.data.count + ' 个文件', 'ok');
+    refreshMe();
   } catch (err) {
     showMsg('batchMsg', '请求失败：' + err.message, 'err');
   } finally { setLoading(btn, false, '批量解析'); }
@@ -616,6 +677,7 @@ $('btnAsr').onclick = async e => {
     ].filter(Boolean).join(' · ');
     $('asrBox').style.display = 'block';
     showMsg('asrMsg', text ? '转写完成，有同音字就点「AI 校对」修一遍' : '没有识别到语音内容', text ? 'ok' : 'err');
+    refreshMe();
   } catch (err) {
     showMsg('asrMsg', '请求失败：' + err.message, 'err');
   } finally { setLoading(btn, false, '提取文案'); }
@@ -684,10 +746,147 @@ $('btnAi').onclick = async e => {
       setTimeout(() => $('aiState').textContent = '', 1600);
     };
     $('aiState').textContent = '点结果可复制';
+    refreshMe();
   } catch (err) {
     showMsg('aiMsg', '请求失败：' + err.message, 'err');
   } finally { setLoading(btn, false, '开始改写'); }
 };
+/* ---------- 账号 / 额度 ---------- */
+let ME = null;
+
+function authMsg(text, type) {
+  const el = $('authMsg');
+  if (!text) { el.className = 'msg'; el.textContent = ''; return; }
+  el.className = 'msg ' + type;
+  el.textContent = text;
+}
+
+function setPane(p) {
+  ['login', 'register', 'recharge'].forEach(k => {
+    $('pane-' + k).style.display = (k === p ? 'block' : 'none');
+  });
+  document.querySelectorAll('.mtab').forEach(t => t.classList.toggle('on', t.dataset.pane === p));
+  $('authTitle').textContent = p === 'login' ? '登录' : (p === 'register' ? '注册（需邀请码）' : '充值额度');
+  authMsg('', '');
+}
+
+function openAuth(p) {
+  if (p === 'recharge' && !ME) p = 'login';
+  $('tabRecharge').style.display = ME ? '' : 'none';
+  setPane(p || 'login');
+  $('authMask').classList.add('on');
+}
+function closeAuth() { $('authMask').classList.remove('on'); }
+
+document.querySelectorAll('.mtab').forEach(t => { t.onclick = () => setPane(t.dataset.pane); });
+$('authClose').onclick = closeAuth;
+$('authMask').onclick = e => { if (e.target === $('authMask')) closeAuth(); };
+
+function renderAuth() {
+  const area = $('authArea');
+  if (ME) {
+    area.innerHTML = '<span class="user-chip"><em>' + esc(ME.email) + '</em><b>' + ME.balance + ' 次</b></span>'
+      + '<button class="ghost sm" id="btnRecharge">充值</button>'
+      + '<button class="ghost sm" id="btnLogout">退出</button>';
+    $('btnRecharge').onclick = () => openAuth('recharge');
+    $('btnLogout').onclick = doLogout;
+  } else {
+    area.innerHTML = '<button class="ghost sm" id="btnAuthOpen">登录 / 注册</button>';
+    $('btnAuthOpen').onclick = () => openAuth('login');
+  }
+  $('tabRecharge').style.display = ME ? '' : 'none';
+}
+
+async function refreshMe() {
+  try {
+    const r = await fetch('/api/auth/me').then(x => x.json());
+    ME = r.ok ? r.data : null;
+  } catch (e) { ME = null; }
+  renderAuth();
+}
+
+async function doLogout() {
+  await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+  ME = null;
+  renderAuth();
+  showMsg('quickMsg', '已退出登录', 'ok');
+}
+
+$('btnLogin').onclick = async () => {
+  const email = $('loginEmail').value.trim(), password = $('loginPass').value;
+  if (!email || !password) { authMsg('邮箱和密码都要填', 'err'); return; }
+  const btn = $('btnLogin');
+  setLoading(btn, true, '登录');
+  try {
+    const r = await fetch('/api/auth/login', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ email, password })
+    }).then(x => x.json());
+    if (!r.ok) { authMsg(r.error || '登录失败', 'err'); return; }
+    ME = r.data;
+    renderAuth();
+    closeAuth();
+    showMsg('quickMsg', '已登录：' + ME.email, 'ok');
+  } catch (e) {
+    authMsg('请求失败：' + e.message, 'err');
+  } finally { setLoading(btn, false, '登录'); }
+};
+
+$('btnReg').onclick = async () => {
+  const email = $('regEmail').value.trim();
+  const password = $('regPass').value;
+  const code = $('regCode').value.trim();
+  if (!email || !password) { authMsg('邮箱和密码都要填', 'err'); return; }
+  if (password.length < 6) { authMsg('密码至少 6 位', 'err'); return; }
+  if (!code) { authMsg('请填邀请码', 'err'); return; }
+  const btn = $('btnReg');
+  setLoading(btn, true, '注册');
+  try {
+    const r = await fetch('/api/auth/register', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ email, password, code })
+    }).then(x => x.json());
+    if (!r.ok) { authMsg(r.error || '注册失败', 'err'); return; }
+    ME = r.data;
+    renderAuth();
+    closeAuth();
+    showMsg('quickMsg', '注册成功，已送 ' + ME.balance + ' 次额度', 'ok');
+  } catch (e) {
+    authMsg('请求失败：' + e.message, 'err');
+  } finally { setLoading(btn, false, '注册并登录'); }
+};
+
+$('btnRedeem').onclick = async () => {
+  const code = $('rcCode').value.trim();
+  if (!code) { authMsg('请填邀请码', 'err'); return; }
+  const btn = $('btnRedeem');
+  setLoading(btn, true, '充值');
+  try {
+    const r = await fetch('/api/auth/redeem', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ code })
+    }).then(x => x.json());
+    if (!r.ok) { authMsg(r.error || '充值失败', 'err'); return; }
+    ME = r.data;
+    renderAuth();
+    closeAuth();
+    showMsg('quickMsg', '充值成功，当前余额 ' + ME.balance + ' 次', 'ok');
+  } catch (e) {
+    authMsg('请求失败：' + e.message, 'err');
+  } finally { setLoading(btn, false, '充值'); }
+};
+
+// 出错时如果原因是「没登录 / 额度不足」，顺手把该开的弹窗打开
+const baseShowMsg = showMsg;
+showMsg = function (id, text, type) {
+  baseShowMsg(id, text, type);
+  if (type === 'err' && text) {
+    if (text.indexOf('额度不足') >= 0) openAuth('recharge');
+    else if (text.indexOf('登录') >= 0) openAuth('login');
+  }
+};
+
+refreshMe();
 </script>
 </body>
 </html>
