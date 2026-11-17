@@ -11,6 +11,30 @@
 | 后端端口 | 8094（PM2 进程 `douyin-web`） |
 | 源码仓库 | https://github.com/foxnangang/douyin-web |
 
+## 双引擎架构（2026-11-18 合并）
+
+```
+dy.foxnan.com
+   ├─ /api/quick-parse  →  127.0.0.1:8095 (Python parse-video-py)  免 Cookie，分享短链
+   ├─ /api/parse        →  Rust 核心 a_bogus 签名                  需 Cookie，单作品
+   └─ /api/fetch        →  Rust 核心 a_bogus 签名                  需 Cookie，主页/点赞批量
+```
+
+| 引擎 | 服务 | 用途 | Cookie |
+|---|---|---|---|
+| 快速解析 | Python venv + PM2 `dy-parser` | 分享短链，33+ 平台，单作品 | 不需要 |
+| 深度解析 | Rust 核心 | 主页/点赞/收藏批量，私有内容 | 需要 |
+
+Python 解析服务：
+- 路径：`/www/wwwroot/dy.foxnan.com/parser/`（venv 隔离，不污染系统 Python）
+- 基线库：`parse-video-py`（MIT，wujunwei928），从 GitHub v0.0.3 tag 安装后强制升级到 main 分支代码
+- 两处本地补丁（在 `outbound.py`）：
+  - 抖音白名单补 `365yg.com`（西瓜 CDN，抖音偶尔返回）
+  - 响应上限 16MB → 64MB（分享页 HTML 超 16MB）
+- 监听：`127.0.0.1:8095`（外部无法直连）
+- PM2 进程：`dy-parser`
+- 上游更新后需重装并重打补丁
+
 ## 功能
 
 1. **单链接解析**：粘贴作品链接 → 返回无水印直链（视频/图集/实况），可在线打开或下载
