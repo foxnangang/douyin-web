@@ -730,6 +730,67 @@ async fn voices(State(st): State<AppState>) -> Json<serde_json::Value> {
     }
 }
 
+// ---------- 文案提取（ASR） ----------
+
+#[derive(Debug, Deserialize)]
+struct AsrReq {
+    url: String,
+    #[serde(default)]
+    lang: String,
+    #[serde(default)]
+    max_seconds: u32,
+}
+
+/// 语音转文字：转发到本机 ASR 服务（faster-whisper）。
+/// 只接受直链——分享页链接请前端先走 /api/quick-parse 拿 video_url。
+async fn asr_proxy(
+    State(st): State<AppState>,
+    Query(q): Query<AsrReq>,
+) -> Json<ApiResp<serde_json::Value>> {
+    let url = q.url.trim();
+    if url.is_empty() {
+        return Json(ApiResp::err("缺少视频直链"));
+    }
+    if !is_public_url(url) {
+        return Json(ApiResp::err("只支持公网视频直链"));
+    }
+
+    let enc = |s: &str| {
+        percent_encoding::utf8_percent_encode(s, percent_encoding::NON_ALPHANUMERIC).to_string()
+    };
+    let lang = if q.lang.trim().is_empty() { "zh" } else { q.lang.trim() };
+    let mut target = format!("http://127.0.0.1:8097/asr?url={}&lang={}", enc(url), enc(lang));
+    if q.max_seconds > 0 {
+        // 上限 10 分钟：再长就该切片了，4 核机器扛不住
+        target.push_str(&format!("&max_seconds={}", q.max_seconds.min(600)));
+    }
+
+    // 转写是慢活（1 分钟音频约 20 秒），默认 12 秒超时必须放大
+    let resp = st
+        .client
+        .client
+        .get(&target)
+        .timeout(std::time::Duration::from_secs(420))
+        .send()
+        .await;
+    let resp = match resp {
+        Ok(r) => r,
+        Err(e) => return Json(ApiResp::err(format!("转写服务不可用: {e}"))),
+    };
+    let body: serde_json::Value = match resp.json().await {
+        Ok(v) => v,
+        Err(e) => return Json(ApiResp::err(format!("转写服务响应异常: {e}"))),
+    };
+    if body.get("code").and_then(|v| v.as_i64()) != Some(200) {
+        let msg = body
+            .get("msg")
+            .and_then(|v| v.as_str())
+            .unwrap_or("转写失败");
+        return Json(ApiResp::err(msg));
+    }
+    Json(ApiResp::ok(body.get("data").cloned().unwrap_or_default()))
+}
+
 // ---------- AI 改写 ----------
 
 #[derive(Debug, Deserialize)]
@@ -746,6 +807,11 @@ fn ai_prompt(mode: &str, text: &str) -> Option<(String, String)> {
         "script" => "改写成一条 30 秒短视频口播脚本（约 120~150 字）：开头 3 秒抓人，中间讲清一个点，结尾引导互动。只输出脚本正文。",
         "rewrite" => "对下面这段文案做伪原创改写：保留信息内核，换结构与用词，避免与原句雷同，读起来像人说的话。只输出改写后的文案。",
         "summary" => "总结下面内容：先给 3~5 条要点（编号），最后给一句话结论。",
+        "proofread" => {
+            "下面是语音转写出来的文本，可能有同音字、错别字和缺失标点。请修正这些错误并补全标点，\
+             保持原句顺序与原意，不要润色、不要改写、不要增删信息；无法确定的地方按最合理理解修正。\
+             只输出修正后的文本。"
+        }
         _ => return None,
     };
     Some((system.to_string(), format!("{task}\n\n原文：\n{text}")))
@@ -858,6 +924,7 @@ async fn main() {
         .route("/api/zip", post(zip_download))
         .route("/api/tts", get(tts))
         .route("/api/voices", get(voices))
+        .route("/api/asr", get(asr_proxy))
         .route("/api/ai", post(ai_rewrite))
         .route("/api/quick-parse", get(quick_parse))
         .with_state(state)

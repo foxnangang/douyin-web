@@ -112,6 +112,39 @@ pm2 save                            # 必须 save，否则重启/ resurrect 后�
 > 火山方舟那套 `ark-…` 的套餐 Key 只能调生图模型，文本模型会报
 > `UnsupportedModel: does not support the agent plan feature`，别拿它试 AI 改写。
 
+## 文案提取 / ASR 服务（2026-11-18）
+
+独立进程，跟解析服务分开放——模型常驻占内存，混在一起会互相拖累。
+
+| 项目 | 值 |
+|---|---|
+| 目录 | `/www/wwwroot/dy.foxnan.com/asr/`（独立 venv） |
+| 端口 | `127.0.0.1:8097`（8096 被 qc-workbench 占了，别再踩） |
+| PM2 | `dy-asr`，解释器 `./venv/bin/python` |
+| 模型 | faster-whisper `small` + int8 + 2 线程，464MB，缓存在 `asr/models/` |
+| 下载源 | 必须带 `HF_ENDPOINT=https://hf-mirror.com`，否则连不上 HuggingFace |
+| 上限 | 单次 5 分钟音频（`ASR_MAX_SECONDS`，接口可传 `max_seconds` ≤600） |
+
+流水线：`ffmpeg` 直接从 URL 抽音轨（16k 单声道，不落整段视频）→ faster-whisper 转写（带 VAD 切静音）。
+
+> 两个坑：
+> 1. ffmpeg 的 `-headers` 要用 CRLF 结尾；防盗链试三轮——带 Referer、只带 UA、什么都不带。
+> 2. 4 核 7G 的机器可用内存只有 2~3G，所以 `cpu_threads=2`、单实例串行（`_run_lock`），模型懒加载。
+
+实测：60 秒音频 → 20.5 秒出结果。标准普通话内容准确，但**同音字会错**（茶舍→茶社、一芽一叶→一牙一夜），所以前端配了「AI 校对」按钮走 `/api/ai` 的 `proofread` 模式修一遍。
+
+### 部署 / 重装
+
+```bash
+cd /www/wwwroot/dy.foxnan.com/asr
+python3 -m venv venv
+./venv/bin/pip install fastapi "uvicorn[standard]" faster-whisper
+export HF_ENDPOINT=https://hf-mirror.com ASR_MODEL=small ASR_THREADS=2 ASR_PORT=8097
+pm2 delete dy-asr; pm2 start asr-server.py --name dy-asr --interpreter ./venv/bin/python
+pm2 save
+curl -X POST http://127.0.0.1:8097/warmup   # 预下载模型，约 23 秒
+```
+
 ## 功能
 
 1. **单链接解析**：粘贴作品链接 → 返回无水印直链（视频/图集/实况），可在线打开或下载
