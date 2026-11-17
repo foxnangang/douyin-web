@@ -12,16 +12,19 @@
 
 | 部分 | 来源 | 说明 |
 |---|---|---|
-| `server/src/douyin/` 全套（6 文件） | 原项目 | 签名、抖音接口、解析，**逐字节复制，零修改** |
-| `server/src/models.rs`、`paths.rs` | 原项目 | 数据模型与工具函数，零修改 |
+| `server/src/douyin/sign/abogus.rs` | **f2（Apache-2.0）** | 签名算法，f2 Python 实现的 Rust 移植 |
+| `server/src/douyin/` 其余 5 文件 | 桌面版项目 | 接口、解析、模型，零修改 |
+| `server/src/models.rs`、`paths.rs` | 桌面版项目 | 数据模型与工具函数，零修改 |
 | `server/src/main.rs` | 本项目新写 | axum HTTP 服务、API 端点、下载代理 |
-| `server/src/error.rs` | 原项目改造 | 去掉 Tauri 错误变体 |
+| `server/src/error.rs` | 桌面版改造 | 去掉 Tauri 错误变体 |
 | `public/index.html` | 本项目新写 | 网页界面（墨绿主题） |
 | `.github/workflows/build.yml` | 本项目新写 | 云端编译配置 |
 
-原项目核心代码占后端约 **88%**（2681 行 / 3054 行）。签名算法 a_bogus 源自 [Johnserf-Seed/f2](https://github.com/Johnserf-Seed/f2)（Apache-2.0），由原作者引入。
+原项目核心代码占后端约 **88%**（2681 行 / 3054 行）。
 
-**许可证**：见 [LICENSE](LICENSE)。原项目的 MIT 授权与附加使用限制条款完整保留。本衍生项目同样仅供学习与研究，禁止商业用途。
+关键授权事实：签名算法 a_bogus 并非桌面版作者原创，而是源自 [Johnserf-Seed/f2](https://github.com/Johnserf-Seed/f2)（Apache-2.0）。经逐项比对，S 盒、两套自定义字母表、盐值、置换逻辑与 f2 完全一致。算法直接使用上游 Apache-2.0 授权，其余文件使用桌面版 MIT 授权（MIT 本身允许商用）。
+
+**许可证**：见 [LICENSE](LICENSE)（Apache-2.0）与 [NOTICE](NOTICE)（上游署名与授权链说明）。本声明基于可验证的事实，不构成法律意见；商业部署前建议咨询专业人士。
 
 ## 功能
 

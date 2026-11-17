@@ -1,6 +1,8 @@
 //! a_bogus 签名算法（1.0.1.19）。
 //!
 //! 算法源自 Johnserf-Seed/f2（Apache-2.0），包含 SM3、自定义 base64 字母表与 RC4 编排。
+//! https://github.com/Johnserf-Seed/f2
+//! 本文件为 f2 Python 实现的 Rust 移植版，保留其全部常量与算法细节。
 //!
 //! 实现中有三处细节必须与参考实现保持一致，否则签名为空：
 //! 1. 中间量按 **码点**（`chr`/`ord`）流转，会超过 255。`ab_dir[24]`、`ab_dir[56]`（=aid 6383）、
