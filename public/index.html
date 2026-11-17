@@ -91,11 +91,19 @@ code{background:var(--canvas);padding:1px 5px;border-radius:4px;font-size:11px;c
   <div class="card">
     <h2><span class="n">2</span>解析作品</h2>
     <div class="tabs">
-      <div class="tab on" data-mode="single">单作品链接</div>
+      <div class="tab on" data-mode="quick">免Cookie解析(推荐)</div>
+      <div class="tab" data-mode="single">单作品链接</div>
       <div class="tab" data-mode="post">主页作品</div>
       <div class="tab" data-mode="favorite">点赞作品</div>
     </div>
-    <div class="panel on" id="panel-single">
+    <div class="panel on" id="panel-quick">
+      <p class="hint">粘贴抖音分享短链（v.douyin.com/...），无需 Cookie 直接解析无水印直链。支持 33+ 平台。</p>
+      <div class="row">
+        <input id="urlQuick" placeholder="https://v.douyin.com/xxxxx/">
+        <button id="btnQuick">快速解析</button>
+      </div>
+    </div>
+    <div class="panel" id="panel-single">
       <p class="hint">粘贴作品页地址（/video/ 或 /note/）或抖音分享短链。</p>
       <div class="row">
         <input id="urlSingle" placeholder="https://www.douyin.com/video/123456789...">
@@ -207,6 +215,21 @@ $('btnCookie').onclick = async () => {
   } finally { setLoading($('btnCookie'), false, '校验 Cookie'); }
 };
 
+async function doQuick(btn) {
+  const url = $('urlQuick').value.trim();
+  if (!url) { showMsg('parseMsg', '请粘贴分享短链', 'err'); return; }
+  setLoading(btn, true, '解析中');
+  showMsg('parseMsg', '', '');
+  try {
+    const r = await fetch('/api/quick-parse?url=' + encodeURIComponent(url)).then(x => x.json());
+    if (!r.ok) { showMsg('parseMsg', r.error || '解析失败', 'err'); return; }
+    renderResults(r.data);
+    showMsg('parseMsg', '解析成功 · 无需 Cookie · 可下载无水印原视频', 'ok');
+  } catch (e) {
+    showMsg('parseMsg', '请求失败：' + e.message, 'err');
+  } finally { setLoading(btn, false, '快速解析'); }
+}
+
 async function doFetch(url, mode, btn, label) {
   if (mode !== 'favorite' && !url.trim()) { showMsg('parseMsg', '请粘贴链接', 'err'); return; }
   setLoading(btn, true, label);
@@ -268,6 +291,7 @@ function renderResults(data) {
   });
 }
 
+$('btnQuick').onclick = e => doQuick(e.currentTarget);
 $('btnParse').onclick = e => doParse(e.currentTarget);
 $('btnFetchPost').onclick = e => doFetch($('urlPost').value, 'post', e.currentTarget, '批量解析');
 $('btnFetchFav').onclick = e => doFetch($('urlFavorite').value, 'favorite', e.currentTarget, '批量解析');

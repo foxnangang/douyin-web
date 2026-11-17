@@ -291,6 +291,68 @@ async fn download(
     (status, headers, Body::from_stream(stream)).into_response()
 }
 
+#[derive(Debug, Deserialize)]
+struct QuickReq {
+    url: String,
+}
+
+/// 免 Cookie 快速解析：本机 Python 解析服务（parse-video-py）转发。
+/// 只接受抖音/主流平台分享短链，结果映射成前端统一的作品结构。
+async fn quick_parse(
+    State(st): State<AppState>,
+    Query(q): Query<QuickReq>,
+) -> Json<ApiResp<serde_json::Value>> {
+    if q.url.trim().is_empty() {
+        return Json(ApiResp::err("请粘贴分享链接"));
+    }
+    let target = format!(
+        "http://127.0.0.1:8095/parse?url={}",
+        percent_encoding::utf8_percent_encode(&q.url, percent_encoding::CONTROLS)
+    );
+    let resp = st.client.client.get(&target).send().await;
+    let upstream = match resp {
+        Ok(r) => r,
+        Err(e) => return Json(ApiResp::err(format!("解析服务不可用: {e}"))),
+    };
+    let body: serde_json::Value = match upstream.json().await {
+        Ok(v) => v,
+        Err(e) => return Json(ApiResp::err(format!("解析服务响应异常: {e}"))),
+    };
+    if body.get("code").and_then(|v| v.as_i64()) != Some(200) {
+        let msg = body.get("msg").and_then(|v| v.as_str()).unwrap_or("解析失败");
+        return Json(ApiResp::err(msg));
+    }
+    let d = body.get("data").cloned().unwrap_or_default();
+    // 映射成前端统一的作品行（TaskRow 风格），无水印直链放 url 字段
+    let row = serde_json::json!({
+        "id": "quick-1",
+        "awemeId": "quick",
+        "desc": d.get("title").and_then(|v| v.as_str()).unwrap_or(""),
+        "kind": "video",
+        "url": d.get("video_url").and_then(|v| v.as_str()).unwrap_or(""),
+        "playUrl": d.get("video_url").and_then(|v| v.as_str()).unwrap_or(""),
+        "ext": "mp4",
+        "isImage": false,
+        "date": "",
+        "mix": "",
+        "ownerNickname": d.get("author").and_then(|a| a.get("name")).and_then(|v| v.as_str()).unwrap_or(""),
+        "urlHash": "quick",
+    });
+    let profile = serde_json::json!({
+        "nickname": d.get("author").and_then(|a| a.get("name")).and_then(|v| v.as_str()).unwrap_or(""),
+        "uniqueId": "",
+        "avatarUrl": d.get("author").and_then(|a| a.get("avatar")).and_then(|v| v.as_str()).unwrap_or(""),
+        "secUid": "",
+    });
+    Json(ApiResp::ok(serde_json::json!({
+        "profile": profile,
+        "works": [row],
+        "count": 1,
+        "mode": "quick",
+        "coverUrl": d.get("cover_url").and_then(|v| v.as_str()).unwrap_or(""),
+    })))
+}
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt()
@@ -317,6 +379,7 @@ async fn main() {
         .route("/api/fetch", post(fetch))
         .route("/api/cookie/check", post(check_cookie))
         .route("/api/download", get(download))
+        .route("/api/quick-parse", get(quick_parse))
         .with_state(state)
         .layer(cors);
 
