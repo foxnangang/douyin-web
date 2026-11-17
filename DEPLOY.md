@@ -51,6 +51,14 @@ Python 解析服务：
 - 封面字段来源：`TaskRow.cover`（视频取 `video.origin_cover` 优先，图集取该图 `url_list[0]` 低清版）；快速解析取 Python 返回的 `cover_url`
 - 前端 `img` 加载失败自动隐藏，露出「暂无预览」占位，不弹错
 
+## 下载代理的 Range 转发
+
+`/api/download` 会透传客户端的 `Range` 头，并在 206 响应里回带 `Content-Range`：
+
+- 不转发时浏览器只能整段下载，`<video>` 进度条拖不动
+- 转发后「打开」页可边下边播、任意跳转
+- 实测同一条 365yg 直链：完整下载 42MB / `video/mp4`，字节头 `ftypisom` 正常
+
 ## 功能
 
 1. **单链接解析**：粘贴作品链接 → 返回无水印直链（视频/图集/实况），可在线打开或下载

@@ -231,9 +231,13 @@ fn is_allowed_cdn(url: &str) -> bool {
 
 /// 流式代理下载抖音 CDN 文件。
 /// 浏览器直连 CDN 会因 Referer 校验返回 403；由后端带正确 Referer 转发即可。
+///
+/// 转发客户端的 `Range`：`<video>` 播放时浏览器会按段请求，不转发就只能整段下载，
+/// 表现为进度条无法拖动。
 async fn download(
     State(st): State<AppState>,
     Query(q): Query<DownloadReq>,
+    headers_in: HeaderMap,
 ) -> Response {
     if !is_allowed_cdn(&q.url) {
         return (
@@ -243,16 +247,17 @@ async fn download(
             .into_response();
     }
 
-    let resp = st
+    let mut req = st
         .client
         .client
         .get(&q.url)
         .header(header::REFERER, "https://www.douyin.com/")
-        .header(header::USER_AGENT, douyin::api::UA)
-        .send()
-        .await;
+        .header(header::USER_AGENT, douyin::api::UA);
+    if let Some(range) = headers_in.get(header::RANGE) {
+        req = req.header(header::RANGE, range.clone());
+    }
 
-    let upstream = match resp {
+    let upstream = match req.send().await {
         Ok(r) => r,
         Err(e) => {
             return (StatusCode::BAD_GATEWAY, format!("请求 CDN 失败: {e}")).into_response()
@@ -275,6 +280,10 @@ async fn download(
     }
     if let Some(len) = upstream.headers().get(header::CONTENT_LENGTH) {
         headers.insert(header::CONTENT_LENGTH, len.clone());
+    }
+    // 206 分段响应：必须把 Content-Range 带回去，否则 <video> 会判定分段失败
+    if let Some(cr) = upstream.headers().get(header::CONTENT_RANGE) {
+        headers.insert(header::CONTENT_RANGE, cr.clone());
     }
     headers.insert(header::ACCEPT_RANGES, HeaderValue::from_static("bytes"));
 
