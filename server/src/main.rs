@@ -397,13 +397,25 @@ async fn auth_logout(State(st): State<AppState>, headers: HeaderMap) -> Response
     (h, Json(serde_json::json!({ "ok": true }))).into_response()
 }
 
+fn ctx_key(user_id: i64) -> String {
+    format!("user_context:{user_id}")
+}
+
 async fn auth_me(State(st): State<AppState>, headers: HeaderMap) -> Response {
     match require_user(&st, &headers) {
-        Ok(u) => Json(serde_json::json!({
-            "ok": true,
-            "data": { "email": u.email, "nickname": u.nickname, "balance": u.balance }
-        }))
-        .into_response(),
+        Ok(u) => {
+            let context = st.db.get_setting(&ctx_key(u.id)).unwrap_or_default();
+            Json(serde_json::json!({
+                "ok": true,
+                "data": {
+                    "email": u.email,
+                    "nickname": u.nickname,
+                    "balance": u.balance,
+                    "context": context
+                }
+            }))
+            .into_response()
+        }
         Err(_) => Json(serde_json::json!({ "ok": false, "data": null })).into_response(),
     }
 }
@@ -434,6 +446,28 @@ async fn auth_redeem(
         }))
         .into_response(),
         Err(e) => json_err(StatusCode::BAD_REQUEST, &e.text()),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct ContextReq {
+    context: String,
+}
+
+/// 保存「品牌设定」：一句话说清你是谁、卖什么、什么语气
+async fn auth_context(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<ContextReq>,
+) -> Response {
+    let user = match require_user(&st, &headers) {
+        Ok(u) => u,
+        Err(msg) => return json_err(StatusCode::UNAUTHORIZED, &msg),
+    };
+    let ctx: String = req.context.trim().chars().take(1000).collect();
+    match st.db.set_setting(&ctx_key(user.id), &ctx) {
+        Ok(()) => Json(serde_json::json!({ "ok": true, "data": { "context": ctx } })).into_response(),
+        Err(e) => json_err(StatusCode::INTERNAL_SERVER_ERROR, &e.text()),
     }
 }
 
@@ -1261,6 +1295,9 @@ async fn asr_proxy(
 struct AiReq {
     mode: String,
     text: String,
+    /// 创作者/品牌背景，前端从账号里带上来；不传就等于没有
+    #[serde(default)]
+    context: String,
 }
 
 fn ai_prompt(mode: &str, text: &str) -> Option<(String, String)> {
@@ -1305,9 +1342,16 @@ async fn ai_rewrite(
     if text.chars().count() > 4000 {
         return Json(ApiResp::err("原文过长，请控制在 4000 字以内"));
     }
-    let Some((system, user_msg)) = ai_prompt(&req.mode, text) else {
+    let Some((mut system, user_msg)) = ai_prompt(&req.mode, text) else {
         return Json(ApiResp::err(format!("未知模式: {}", req.mode)));
     };
+    // 品牌设定：让模型知道「我是谁、卖什么、什么语气」，避免写出泛泛的电商稿
+    let ctx: String = req.context.trim().chars().take(1000).collect();
+    if !ctx.is_empty() {
+        system.push_str(&format!(
+            "\n\n【创作者背景，写作时自然融入，不要生硬复述、不要照抄成广告语】\n{ctx}"
+        ));
+    }
 
     let key = std::env::var("AI_API_KEY").unwrap_or_default();
     if key.trim().is_empty() {
@@ -1883,6 +1927,7 @@ async fn main() {
         .route("/api/auth/me", get(auth_me))
         .route("/api/auth/redeem", post(auth_redeem))
         .route("/api/auth/nickname", post(auth_nickname))
+        .route("/api/auth/context", post(auth_context))
         .route("/internal/issue-code", post(issue_code_internal))
         .route("/api/admin/login", post(admin_login))
         .route("/api/admin/logout", post(admin_logout))

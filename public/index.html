@@ -366,6 +366,17 @@ footer a:hover{text-decoration:underline}
     <div class="card">
       <div class="card-h"><h2>AI 写作</h2><span class="badge">长文</span></div>
       <p class="hint">给个标题和关键词，直接出一篇能发的文章；写完可以一键压成摘要。</p>
+      <details id="ctxBox" style="margin:0 0 12px;border-top:none;padding-top:0">
+        <summary id="ctxSummary">品牌设定（可选，填一次以后每次生成都自动带上）</summary>
+        <div class="inner">
+          <textarea id="ctxText" style="min-height:100px"
+            placeholder="例：我是李刚，在杭州做凤竹茶舍（明前龙井）和予歆农场（土鸡蛋、土鸡）。客户是 30~45 岁在意食材的宝妈和上班族。语气实在、不爱夸张、爱讲细节（山头、采摘日期、喂养方式）。不要用「赋能」「闭环」这类词。"></textarea>
+          <div class="row-inline" style="margin-top:8px">
+            <button class="soft sm" id="btnCtxSave">保存设定</button>
+            <span style="font-size:12px;color:var(--ink3)" id="ctxState"></span>
+          </div>
+        </div>
+      </details>
       <select id="writeLen" style="margin-bottom:9px">
         <option value="500">短篇 · 约 500 字</option>
         <option value="800" selected>常规 · 约 800 字</option>
@@ -834,7 +845,7 @@ $('btnAi').onclick = async e => {
   try {
     const r = await fetch('/api/ai', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ mode: aiMode, text })
+      body: JSON.stringify({ mode: aiMode, context: ctxNow(), text })
     }).then(x => x.json());
     if (!r.ok) { showMsg('aiMsg', r.error || '改写失败', 'err'); return; }
     out.textContent = r.data.result;
@@ -850,6 +861,30 @@ $('btnAi').onclick = async e => {
     showMsg('aiMsg', '请求失败：' + err.message, 'err');
   } finally { setLoading(btn, false, '开始改写'); }
 };
+const ctxNow = () => (ME && ME.context) || '';
+
+/* ---------- 品牌设定 ---------- */
+$('btnCtxSave').onclick = async () => {
+  const val = $('ctxText').value.trim();
+  const btn = $('btnCtxSave');
+  setLoading(btn, true, '保存设定');
+  try {
+    const r = await fetch('/api/auth/context', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ context: val })
+    }).then(x => x.json());
+    if (!r.ok) { $('ctxState').textContent = r.error || '保存失败'; return; }
+    if (!ME) ME = {};
+    ME.context = r.data.context;
+    $('ctxState').textContent = val ? '已保存，之后每次生成都会带上' : '已清空';
+    $('ctxSummary').textContent = val
+      ? '品牌设定（已填 ' + val.length + ' 字，点开可改）'
+      : '品牌设定（可选，填一次以后每次生成都自动带上）';
+  } catch (e) {
+    $('ctxState').textContent = '请求失败：' + e.message;
+  } finally { setLoading(btn, false, '保存设定'); }
+};
+
 /* ---------- AI 写作 ---------- */
 $('btnWrite').onclick = async e => {
   const title = $('writeTitle').value.trim();
@@ -865,7 +900,7 @@ $('btnWrite').onclick = async e => {
   try {
     const r = await fetch('/api/ai', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ mode: 'write', text: '标题：' + title + '\n关键词：' + keys + '\n字数：约 ' + len + ' 字' })
+      body: JSON.stringify({ mode: 'write', context: ctxNow(), text: '标题：' + title + '\n关键词：' + keys + '\n字数：约 ' + len + ' 字' })
     }).then(x => x.json());
     if (!r.ok) { showMsg('writeMsg', r.error || '生成失败', 'err'); return; }
     const out = $('writeOut');
@@ -910,7 +945,7 @@ $('btnDigest').onclick = async e => {
   try {
     const r = await fetch('/api/ai', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ mode: 'digest', text })
+      body: JSON.stringify({ mode: 'digest', context: ctxNow(), text })
     }).then(x => x.json());
     if (!r.ok) { showMsg('digestMsg', r.error || '生成失败', 'err'); return; }
     const out = $('digestOut');
@@ -1033,6 +1068,16 @@ async function refreshMe() {
     ME = r.ok ? r.data : null;
   } catch (e) { ME = null; }
   renderAuth();
+  const box = document.getElementById('ctxText');
+  if (box) {
+    box.value = (ME && ME.context) || '';
+    const sum = document.getElementById('ctxSummary');
+    if (sum) {
+      sum.textContent = (ME && ME.context)
+        ? '品牌设定（已填 ' + ME.context.length + ' 字，点开可改）'
+        : '品牌设定（可选，填一次以后每次生成都自动带上）';
+    }
+  }
 }
 
 async function doLogout() {
