@@ -238,8 +238,8 @@ function renderResults(data) {
       '<span class="kind">' + esc(kindLabel) + '</span></div>' +
       '<div class="body"><div class="desc">' + esc(w.desc) + '</div>' +
       '<div class="meta">' + esc(date) + (w.mix ? ' · ' + esc(w.mix) : '') + '</div>' +
-      '<div class="acts"><a href="' + esc(w.url) + '" target="_blank" referrerpolicy="no-referrer">打开</a>' +
-      '<a href="' + esc(w.url) + '" download>下载</a>' +
+      '<div class="acts"><a href="/api/download?url=' + encodeURIComponent(w.url) + '&name=' + encodeURIComponent((w.desc||w.awemeId||'douyin').slice(0,30)) + '&inline=1" target="_blank">打开</a>' +
+      '<a href="/api/download?url=' + encodeURIComponent(w.url) + '&name=' + encodeURIComponent((w.desc||w.awemeId||'douyin').slice(0,30) + '.' + (w.ext||'mp4')) + '">下载</a>' +
       '<button data-link="' + esc(w.url) + '">复制</button></div></div></div>';
   }).join('');
   grid.querySelectorAll('button[data-link]').forEach(b => {

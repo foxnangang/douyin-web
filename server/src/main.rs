@@ -10,11 +10,11 @@ mod paths;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use axum::extract::State;
-use axum::http::{header, Method};
-use axum::response::IntoResponse;
+use axum::extract::{Query, State};
+use axum::http::{header, HeaderMap, HeaderValue, Method, StatusCode};
+use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
-use axum::{Json, Router};
+use axum::{body::Body, Json, Router};
 use serde::{Deserialize, Serialize};
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::ServeDir;
@@ -56,6 +56,17 @@ fn default_limit() -> usize {
 #[derive(Debug, Deserialize)]
 struct CookieReq {
     cookie: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct DownloadReq {
+    url: String,
+    /// 下载保存的文件名（可选）
+    #[serde(default)]
+    name: String,
+    /// 1 = 浏览器内打开（inline），默认下载
+    #[serde(default)]
+    inline: u8,
 }
 
 #[derive(Serialize)]
@@ -188,6 +199,98 @@ async fn check_cookie(
     }
 }
 
+/// 抖音 CDN 允许的域名后缀。白名单防止此接口被当成开放代理滥用。
+const CDN_ALLOW: &[&str] = &[
+    "douyinvod.com",
+    "douyin.com",
+    "ixigua.com",
+    "byteimg.com",
+    "snssdk.com",
+    "bytedance.com",
+    "byte-cdn.com",
+    "tiktok.com",
+    "cdn-ali.tiktok.com",
+];
+
+fn is_allowed_cdn(url: &str) -> bool {
+    let Ok(u) = url::Url::parse(url) else {
+        return false;
+    };
+    if u.scheme() != "https" && u.scheme() != "http" {
+        return false;
+    }
+    let Some(host) = u.host_str() else {
+        return false;
+    };
+    let host = host.to_ascii_lowercase();
+    CDN_ALLOW.iter().any(|suffix| host == *suffix || host.ends_with(&format!(".{suffix}")))
+}
+
+/// 流式代理下载抖音 CDN 文件。
+/// 浏览器直连 CDN 会因 Referer 校验返回 403；由后端带正确 Referer 转发即可。
+async fn download(
+    State(st): State<AppState>,
+    Query(q): Query<DownloadReq>,
+) -> Response {
+    if !is_allowed_cdn(&q.url) {
+        return (
+            StatusCode::BAD_REQUEST,
+            "仅允许代理抖音 CDN 域名".to_string(),
+        )
+            .into_response();
+    }
+
+    let resp = st
+        .client
+        .client
+        .get(&q.url)
+        .header(header::REFERER, "https://www.douyin.com/")
+        .header(header::USER_AGENT, douyin::api::UA)
+        .send()
+        .await;
+
+    let upstream = match resp {
+        Ok(r) => r,
+        Err(e) => {
+            return (StatusCode::BAD_GATEWAY, format!("请求 CDN 失败: {e}")).into_response()
+        }
+    };
+
+    let status = upstream.status();
+    if !status.is_success() {
+        return (
+            StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::BAD_GATEWAY),
+            format!("CDN 返回 {status}（可能需要有效 Cookie 或链接已过期）"),
+        )
+            .into_response();
+    }
+
+    // 透传内容类型与长度，并强制浏览器下载
+    let mut headers = HeaderMap::new();
+    if let Some(ct) = upstream.headers().get(header::CONTENT_TYPE) {
+        headers.insert(header::CONTENT_TYPE, ct.clone());
+    }
+    if let Some(len) = upstream.headers().get(header::CONTENT_LENGTH) {
+        headers.insert(header::CONTENT_LENGTH, len.clone());
+    }
+    headers.insert(header::ACCEPT_RANGES, HeaderValue::from_static("bytes"));
+
+    let name = if q.name.trim().is_empty() {
+        "douyin-media".to_string()
+    } else {
+        q.name.trim().to_string()
+    };
+    let disposition_type = if q.inline == 1 { "inline" } else { "attachment" };
+    let disposition = format!("{disposition_type}; filename=\"{name}\"; filename*=UTF-8''{}",
+        percent_encoding::utf8_percent_encode(&name, percent_encoding::CONTROLS));
+    if let Ok(v) = HeaderValue::from_str(&disposition) {
+        headers.insert(header::CONTENT_DISPOSITION, v);
+    }
+
+    let stream = upstream.bytes_stream();
+    (status, headers, Body::from_stream(stream)).into_response()
+}
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt()
@@ -213,6 +316,7 @@ async fn main() {
         .route("/api/parse", post(parse))
         .route("/api/fetch", post(fetch))
         .route("/api/cookie/check", post(check_cookie))
+        .route("/api/download", get(download))
         .with_state(state)
         .layer(cors);
 
