@@ -1,0 +1,30 @@
+[package]
+name = "douyin-web-server"
+version = "1.0.0"
+edition = "2021"
+description = "抖音作品解析网页版后端 - 复用 douyin-downloader 的签名与接口层"
+
+[dependencies]
+axum = "0.7"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "fs", "io-util"] }
+tower-http = { version = "0.5", features = ["fs", "cors"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.13", features = ["json", "gzip", "brotli", "cookies"] }
+sm3 = "0.5"
+md-5 = "0.10"
+rand = "0.9"
+regex = "1"
+chrono = "0.4"
+url = "2"
+percent-encoding = "2"
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

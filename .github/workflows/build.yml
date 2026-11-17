@@ -1,0 +1,42 @@
+name: Build Web Server
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: server
+
+      - name: Build release binary
+        working-directory: server
+        run: cargo build --release
+
+      - name: Prepare artifact
+        run: |
+          mkdir -p dist-web
+          cp server/target/release/douyin-web-server dist-web/
+          cp -r public dist-web/
+          cd dist-web && zip -r ../douyin-web-linux.zip .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: douyin-web-linux
+          path: douyin-web-linux.zip
+          if-no-files-found: error

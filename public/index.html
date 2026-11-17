@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>抖音作品解析 · 在线工具</title>
+<style>
+:root{
+  --primary:#3e7a6a;--primary-d:#316254;--primary-l:#eef5f2;
+  --accent:#b08d57;--canvas:#f4f5f1;--surface:#fff;
+  --text:#2c3531;--regular:#5a655f;--muted:#8a948e;
+  --border:#e1e5df;--border-l:#eef0eb;--danger:#c25b52;
+  --radius:10px;font-family:Inter,'HarmonyOS Sans SC','Source Han Sans SC','PingFang SC','Microsoft YaHei',sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--canvas);color:var(--text);font-size:14px;line-height:1.6}
+.top{background:var(--surface);border-bottom:1px solid var(--border);padding:16px 0}
+.wrap{max-width:960px;margin:0 auto;padding:0 20px}
+.brand{display:flex;align-items:center;gap:12px}
+.mark{width:34px;height:34px;border-radius:9px;background:var(--primary);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:16px}
+.brand h1{margin:0;font-size:17px;font-weight:600;letter-spacing:.3px}
+.brand .tag{font-size:11px;color:var(--accent);border:1px solid var(--accent);border-radius:20px;padding:1px 9px;margin-left:6px}
+.brand p{margin:1px 0 0;font-size:12px;color:var(--muted)}
+main{padding:22px 0 60px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px;box-shadow:0 1px 3px rgba(44,53,49,.04)}
+.card h2{margin:0 0 4px;font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px}
+.card h2 .n{width:22px;height:22px;border-radius:6px;background:var(--primary-l);color:var(--primary);font-size:12px;display:flex;align-items:center;justify-content:center}
+.hint{font-size:12px;color:var(--muted);margin:0 0 14px}
+.row{display:flex;gap:10px;align-items:stretch;flex-wrap:wrap}
+input,select,textarea{flex:1;min-width:180px;padding:9px 12px;border:1px solid var(--border);border-radius:7px;font-size:13px;font-family:inherit;color:var(--text);background:var(--surface);outline:none;transition:border-color .15s}
+input:focus,textarea:focus,select:focus{border-color:var(--primary)}
+textarea{width:100%;min-height:74px;resize:vertical;flex:none;font-size:12px}
+button{padding:9px 18px;border:none;border-radius:7px;background:var(--primary);color:#fff;font-size:13px;font-family:inherit;cursor:pointer;white-space:nowrap;transition:background .15s,box-shadow .15s}
+button:hover{background:var(--primary-d);box-shadow:0 3px 10px rgba(62,122,106,.22)}
+button:disabled{opacity:.5;cursor:not-allowed;box-shadow:none}
+button.ghost{background:var(--surface);color:var(--primary);border:1px solid var(--border)}
+button.ghost:hover{border-color:var(--primary);background:var(--primary-l)}
+.tabs{display:flex;gap:6px;margin-bottom:14px;border-bottom:1px solid var(--border-l)}
+.tab{padding:8px 14px;cursor:pointer;font-size:13px;color:var(--regular);border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab.on{color:var(--primary);border-bottom-color:var(--primary);font-weight:500}
+.panel{display:none}.panel.on{display:block}
+.msg{margin-top:12px;padding:9px 12px;border-radius:7px;font-size:12.5px;display:none}
+.msg.err{display:block;background:#fcf0ee;color:var(--danger);border:1px solid #f5d9d5}
+.msg.ok{display:block;background:var(--primary-l);color:var(--primary-d);border:1px solid #d6e8e1}
+.status{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);margin-top:10px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--muted)}
+.dot.ok{background:var(--primary)}.dot.bad{background:var(--danger)}
+.results{margin-top:16px}
+.res-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;font-size:13px;color:var(--regular)}
+.res-head b{color:var(--text)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.item{border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--surface)}
+.thumb{height:150px;background:#eef0eb;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
+.thumb img{width:100%;height:100%;object-fit:cover}
+.thumb .kind{position:absolute;top:8px;left:8px;font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(0,0,0,.6);color:#fff}
+.item .body{padding:10px 12px}
+.item .desc{font-size:12.5px;line-height:1.5;max-height:38px;overflow:hidden;margin-bottom:8px}
+.item .meta{font-size:11px;color:var(--muted);margin-bottom:9px}
+.item .acts{display:flex;gap:7px}
+.item .acts a,.item .acts button{flex:1;text-align:center;padding:6px 8px;font-size:11.5px;text-decoration:none;border-radius:6px;background:var(--primary-l);color:var(--primary-d);border:1px solid #d6e8e1;cursor:pointer}
+.item .acts a:hover,.item .acts button:hover{background:var(--primary);color:#fff;border-color:var(--primary)}
+.empty{text-align:center;color:var(--muted);padding:44px 0;font-size:13px}
+.foot{text-align:center;font-size:11.5px;color:var(--muted);padding:16px 0 30px;line-height:1.8}
+code{background:var(--canvas);padding:1px 5px;border-radius:4px;font-size:11px;color:var(--regular)}
+.spinner{display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px;margin-right:5px}
+@keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="top"><div class="wrap">
+  <div class="brand">
+    <div class="mark">抖</div>
+    <div><h1>抖音作品解析<span class="tag">在线工具</span></h1><p>粘贴链接提取无水印直链 · 支持主页 / 点赞批量解析</p></div>
+  </div>
+</div></div>
+
+<main class="wrap">
+  <div class="card">
+    <h2><span class="n">1</span>登录态设置</h2>
+    <p class="hint">解析公开作品可不填 Cookie；点赞 / 收藏等私有内容需要有效的抖音 Cookie。</p>
+    <textarea id="cookie" placeholder="粘贴抖音 Cookie（可选，公开作品留空即可）&#10;从浏览器 F12 → Network → 任意请求 → Request Headers → Cookie 复制整段"></textarea>
+    <div class="row" style="margin-top:10px">
+      <button class="ghost" id="btnCookie">校验 Cookie</button>
+      <div class="status"><span class="dot" id="dotCookie"></span><span id="cookieMsg">未设置</span></div>
+    </div>
+    <div class="msg" id="cookieResult"></div>
+  </div>
+
+  <div class="card">
+    <h2><span class="n">2</span>解析作品</h2>
+    <div class="tabs">
+      <div class="tab on" data-mode="single">单作品链接</div>
+      <div class="tab" data-mode="post">主页作品</div>
+      <div class="tab" data-mode="favorite">点赞作品</div>
+    </div>
+    <div class="panel on" id="panel-single">
+      <p class="hint">粘贴作品页地址（/video/ 或 /note/）或抖音分享短链。</p>
+      <div class="row">
+        <input id="urlSingle" placeholder="https://www.douyin.com/video/123456789...">
+        <button id="btnParse">解析链接</button>
+      </div>
+    </div>
+    <div class="panel" id="panel-post">
+      <p class="hint">粘贴用户主页链接，批量解析其公开作品。</p>
+      <div class="row">
+        <input id="urlPost" placeholder="https://www.douyin.com/user/MS4wLjABAAAA...">
+        <button id="btnFetchPost">批量解析</button>
+      </div>
+    </div>
+    <div class="panel" id="panel-favorite">
+      <p class="hint">解析当前登录账号的点赞作品，需先填上方 Cookie。</p>
+      <div class="row">
+        <input id="urlFavorite" placeholder="留空=解析自己的点赞；也可填他人主页">
+        <button id="btnFetchFav">批量解析</button>
+      </div>
+    </div>
+    <div class="row" style="margin-top:12px;align-items:center">
+      <label style="font-size:12px;color:var(--regular)">最多返回</label>
+      <select id="limit" style="flex:0 0 110px;min-width:0">
+        <option value="50">50 条</option><option value="200" selected>200 条</option>
+        <option value="500">500 条</option><option value="0">全部</option>
+      </select>
+    </div>
+    <div class="msg" id="parseMsg"></div>
+  </div>
+
+  <div class="results" id="results" style="display:none">
+    <div class="card">
+      <div class="res-head"><span id="resSummary"></span><button class="ghost" id="btnCopyAll">复制全部直链</button></div>
+      <div class="grid" id="grid"></div>
+    </div>
+  </div>
+</main>
+
+<div class="foot">
+  作品版权归原作者所有，本工具仅提取公开直链，请勿用于侵权用途<br>
+  直链可能随时间失效，建议及时下载
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let allLinks = [];
+
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.onclick = () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('on'));
+    tab.classList.add('on');
+    $('panel-' + tab.dataset.mode).classList.add('on');
+  };
+});
+
+function showMsg(id, text, type) {
+  const el = $(id);
+  el.className = 'msg ' + type;
+  el.textContent = text;
+}
+function setLoading(btn, on, text) {
+  btn.disabled = on;
+  btn.innerHTML = on ? '<span class="spinner"></span>处理中…' : text;
+}
+function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+$('btnCookie').onclick = async () => {
+  const cookie = $('cookie').value.trim();
+  if (!cookie) { showMsg('cookieResult', '请先粘贴 Cookie', 'err'); return; }
+  setLoading($('btnCookie'), true, '校验 Cookie');
+  try {
+    const r = await fetch('/api/cookie/check', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({cookie})
+    }).then(x => x.json());
+    if (!r.ok) { showMsg('cookieResult', r.error || '校验失败', 'err'); return; }
+    if (r.data.valid) {
+      const p = r.data.profile || {};
+      $('dotCookie').className = 'dot ok';
+      $('cookieMsg').textContent = '已登录：' + (p.nickname || '账号有效');
+      showMsg('cookieResult', 'Cookie 有效' + (p.uniqueId ? ' · ' + p.uniqueId : ''), 'ok');
+    } else {
+      $('dotCookie').className = 'dot bad';
+      $('cookieMsg').textContent = 'Cookie 无效';
+      showMsg('cookieResult', 'Cookie 无效或已过期，请重新获取', 'err');
+    }
+  } catch (e) {
+    showMsg('cookieResult', '请求失败：' + e.message, 'err');
+  } finally { setLoading($('btnCookie'), false, '校验 Cookie'); }
+};
+
+async function doFetch(url, mode, btn, label) {
+  if (mode !== 'favorite' && !url.trim()) { showMsg('parseMsg', '请粘贴链接', 'err'); return; }
+  setLoading(btn, true, label);
+  showMsg('parseMsg', '', '');
+  try {
+    const r = await fetch('/api/fetch', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({url, mode, cookie: $('cookie').value.trim(), limit: +$('limit').value})
+    }).then(x => x.json());
+    if (!r.ok) { showMsg('parseMsg', r.error || '解析失败', 'err'); return; }
+    renderResults(r.data);
+    showMsg('parseMsg', '解析完成，共 ' + r.data.count + ' 个文件', 'ok');
+  } catch (e) {
+    showMsg('parseMsg', '请求失败：' + e.message, 'err');
+  } finally { setLoading(btn, false, label); }
+}
+
+async function doParse(btn) {
+  const url = $('urlSingle').value.trim();
+  if (!url) { showMsg('parseMsg', '请粘贴作品链接', 'err'); return; }
+  setLoading(btn, true, '解析链接');
+  showMsg('parseMsg', '', '');
+  try {
+    const r = await fetch('/api/parse', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({url, cookie: $('cookie').value.trim()})
+    }).then(x => x.json());
+    if (!r.ok) { showMsg('parseMsg', r.error || '解析失败', 'err'); return; }
+    renderResults(r.data);
+    showMsg('parseMsg', '解析完成，共 ' + r.data.count + ' 个文件', 'ok');
+  } catch (e) {
+    showMsg('parseMsg', '请求失败：' + e.message, 'err');
+  } finally { setLoading(btn, false, '解析链接'); }
+}
+
+function renderResults(data) {
+  const works = data.works || [];
+  allLinks = works.map(w => w.url).filter(Boolean);
+  const p = data.profile || {};
+  $('resSummary').innerHTML = '<b>' + esc(p.nickname || '作品') + '</b> · 共 ' + data.count + ' 个文件';
+  $('results').style.display = works.length ? 'block' : 'none';
+  const grid = $('grid');
+  grid.innerHTML = works.map(w => {
+    const kindLabel = {video:'视频', image:'图片', live:'实况'}[w.kind] || w.kind;
+    const isMedia = w.kind === 'image' || w.kind === 'live';
+    const media = isMedia && /\.(jpe?g|png|webp)/i.test(w.url)
+      ? '<img src="' + esc(w.url) + '" loading="lazy" referrerpolicy="no-referrer">' : '';
+    const date = (w.date || '').slice(0, 16);
+    return '<div class="item"><div class="thumb">' + media +
+      '<span class="kind">' + esc(kindLabel) + '</span></div>' +
+      '<div class="body"><div class="desc">' + esc(w.desc) + '</div>' +
+      '<div class="meta">' + esc(date) + (w.mix ? ' · ' + esc(w.mix) : '') + '</div>' +
+      '<div class="acts"><a href="' + esc(w.url) + '" target="_blank" referrerpolicy="no-referrer">打开</a>' +
+      '<a href="' + esc(w.url) + '" download>下载</a>' +
+      '<button data-link="' + esc(w.url) + '">复制</button></div></div></div>';
+  }).join('');
+  grid.querySelectorAll('button[data-link]').forEach(b => {
+    b.onclick = () => { navigator.clipboard.writeText(b.dataset.link); b.textContent='已复制'; setTimeout(()=>b.textContent='复制',1500); };
+  });
+}
+
+$('btnParse').onclick = e => doParse(e.currentTarget);
+$('btnFetchPost').onclick = e => doFetch($('urlPost').value, 'post', e.currentTarget, '批量解析');
+$('btnFetchFav').onclick = e => doFetch($('urlFavorite').value, 'favorite', e.currentTarget, '批量解析');
+$('btnCopyAll').onclick = e => {
+  if (!allLinks.length) return;
+  navigator.clipboard.writeText(allLinks.join('\n'));
+  e.currentTarget.textContent = '已复制 ' + allLinks.length + ' 条';
+  setTimeout(() => e.currentTarget.textContent = '复制全部直链', 1800);
+};
+</script>
+</body>
+</html>
