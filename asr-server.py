@@ -67,11 +67,14 @@ def extract_audio(url: str, out_path: str, max_seconds: int) -> None:
 
 def transcribe_sync(wav_path: str, lang: str):
     model = load_model()
+    # 中文场景喂一句引导：Whisper 不给引导时常输出繁体、且几乎不打标点
+    prompt = '以下是普通话的句子，使用简体中文，并加上标点。' if lang in ('zh', '') else None
     segments, info = model.transcribe(
         wav_path,
         language=None if lang in ('', 'auto') else lang,
         beam_size=1,
         vad_filter=True,
+        initial_prompt=prompt,
         vad_parameters={'min_silence_duration_ms': 400},
     )
     parts = []
