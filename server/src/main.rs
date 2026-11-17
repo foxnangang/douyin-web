@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 
-use argon2::password_hash::{rand_core::OsRng, SaltString};
+use argon2::password_hash::SaltString;
 use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use axum::extract::{Query, State};
 use axum::http::{header, HeaderMap, HeaderValue, Method, StatusCode};
@@ -244,7 +244,13 @@ fn gate(st: &AppState, headers: &HeaderMap, kind: &str) -> Result<db::User, Stri
 }
 
 fn hash_password(pw: &str) -> Result<String, String> {
-    let salt = SaltString::generate(&mut OsRng);
+    // 自己取 16 字节随机盐再交给 argon2：
+    // password-hash 的 OsRng 被 getrandom feature 门控，这里不额外开 feature。
+    use rand::RngCore;
+    let mut salt_bytes = [0u8; 16];
+    rand::rng().fill_bytes(&mut salt_bytes);
+    let salt = SaltString::encode_b64(&salt_bytes)
+        .map_err(|e| format!("盐生成失败：{e}"))?;
     Argon2::default()
         .hash_password(pw.as_bytes(), &salt)
         .map(|h| h.to_string())
