@@ -3,14 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>视频去水印 · 视频创作者一站式工具箱</title>
-<meta name="description" content="视频去水印、图集下载、文案配音、AI 改写，一个页面搞定短视频创作的琐事。">
+<title>卿辰工坊 · 视频去水印 / 文案提取 / AI 写作</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="apple-touch-icon" href="/logo.svg">
+<meta name="description" content="卿辰工坊：视频去水印、批量抓取、文案提取、文案配音、AI 改写与写作，一个入口搞定短视频创作的琐事。">
 <style>
 :root{
-  --brand:#2f6b5b;--brand-d:#255546;--brand-l:#eef4f1;--brand-line:#d8e7e1;
+  /* 卿辰工坊品牌色（2026.11 品牌板） */
+  --brand:#17594A;--brand-d:#0F4038;--brand-l:#E8F1ED;--brand-line:#CFE2DA;
   --gold:#b08d57;
-  --bg:#f5f6f4;--card:#fff;--ink:#1f2523;--ink2:#5b6663;--ink3:#939c96;
-  --line:#e6e9e4;--danger:#c25b52;--radius:14px;
+  --bg:#F7F8F6;--card:#fff;--ink:#16201D;--ink2:#4A5751;--ink3:#8A938F;
+  --line:#E3E7E5;--danger:#c25b52;--radius:14px;
   font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','HarmonyOS Sans SC','PingFang SC','Microsoft YaHei',sans-serif;
 }
 *{box-sizing:border-box}
@@ -18,35 +21,64 @@ html,body{margin:0}
 body{background:var(--bg);color:var(--ink);font-size:15px;line-height:1.65;-webkit-font-smoothing:antialiased}
 .wrap{max-width:900px;margin:0 auto;padding:0 18px}
 
-/* ---------- 顶部 ---------- */
-header{padding:26px 0 18px}
-header .wrap{display:flex;align-items:center;justify-content:space-between;gap:12px}
-.auth{display:flex;align-items:center;gap:7px;flex-shrink:0}
-.user-chip{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink2);
-  background:#fff;border:1px solid var(--line);border-radius:20px;padding:4px 11px;max-width:230px}
-.user-chip em{font-style:normal;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px}
-.user-chip b{color:var(--brand);font-weight:600;white-space:nowrap}
-.brand{display:flex;align-items:center;gap:13px;min-width:0}
-.mark{width:40px;height:40px;border-radius:12px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:600;box-shadow:0 4px 14px rgba(47,107,91,.25)}
-.brand>div{min-width:0}
-.brand h1{margin:0;font-size:21px;font-weight:600;letter-spacing:.2px;white-space:nowrap}
-.brand .sub{margin:1px 0 0;font-size:12.5px;color:var(--ink3);letter-spacing:.4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.brand .dot-sep{color:var(--brand-line);margin:0 6px}
+/* ---------- 布局：左侧栏 + 内容区 ---------- */
+.layout{display:flex;min-height:100vh;align-items:stretch}
+.side{width:216px;flex-shrink:0;background:#fff;border-right:1px solid var(--line);
+  display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+.side-brand{display:flex;align-items:center;gap:10px;padding:18px 16px 16px;text-decoration:none;color:inherit}
+.side-brand img{width:30px;height:30px;border-radius:8px;display:block}
+.side-brand b{display:block;font-size:15px;font-weight:600;letter-spacing:.2px;line-height:1.25}
+.side-brand small{display:block;font-size:10.5px;color:var(--ink3);letter-spacing:.3px;margin-top:2px}
+.nav{padding:2px 10px;overflow-y:auto;flex:1}
+.grp{font-size:11px;color:var(--ink3);letter-spacing:.5px;padding:14px 8px 6px}
+.ni{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;font-size:13.5px;
+  color:var(--ink2);cursor:pointer;transition:.14s;user-select:none;position:relative;border-left:2px solid transparent}
+.ni svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.ni:hover{background:#FAFBFA;color:var(--ink)}
+.ni.on{background:var(--brand-l);color:var(--brand-d);font-weight:600;border-left-color:var(--brand)}
+.side-foot{padding:12px 14px 16px;border-top:1px solid var(--line)}
+.side-foot .block{width:100%;justify-content:center}
+.side-user{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;
+  background:#FAFBFA;border:1px solid var(--line);border-radius:9px;cursor:pointer;margin-bottom:8px}
+.side-user b{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:110px}
+.side-user span{font-size:11.5px;color:var(--brand);white-space:nowrap;font-weight:600}
+.side-mini{display:flex;gap:6px}
+.side-mini button{flex:1;padding:6px 8px;font-size:12px;border-radius:7px}
 
-/* ---------- 工具切换 ---------- */
-.tools{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin:6px 0 16px}
-.tool{display:flex;flex-direction:column;align-items:center;gap:5px;padding:11px 6px;background:var(--card);
-  border:1px solid var(--line);border-radius:12px;cursor:pointer;transition:.16s;color:var(--ink2);font-size:13px}
-.tool svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
-.tool:hover{border-color:var(--brand-line);color:var(--brand)}
-.tool.on{background:var(--brand);border-color:var(--brand);color:#fff;box-shadow:0 6px 16px rgba(47,107,91,.22)}
-.tool.on:hover{color:#fff}
+/* ---------- 内容区 ---------- */
+.main{flex:1;min-width:0;padding:0 30px 40px}
+.main-in{max-width:860px;margin:0 auto}
+.page-head{padding:26px 0 16px}
+.page-head h1{margin:0;font-size:22px;font-weight:600;letter-spacing:.2px;display:flex;align-items:center;gap:9px}
+.page-head .badge{font-size:11.5px;font-weight:400;color:var(--brand);background:var(--brand-l);
+  border-radius:20px;padding:2px 9px;letter-spacing:0}
+.page-head .hint{margin:7px 0 0;font-size:13px;color:var(--ink3);line-height:1.7}
+
+/* ---------- 移动端：侧栏折成顶部横排 ---------- */
+@media(max-width:760px){
+  .layout{flex-direction:column}
+  .side{width:auto;height:auto;position:static;flex-direction:column;border-right:none;
+    border-bottom:1px solid var(--line)}
+  .side-brand{padding:14px 16px 10px}
+  .nav{display:flex;gap:4px;overflow-x:auto;padding:0 10px 10px;flex:none}
+  .grp{display:none}
+  .ni{white-space:nowrap;padding:7px 11px;border-left:none;border-bottom:2px solid transparent;border-radius:8px 8px 0 0}
+  .ni.on{border-left:none;border-bottom-color:var(--brand)}
+  .ni svg{display:none}
+  .side-foot{border-top:none;padding:0 14px 12px}
+  .main{padding:0 16px 34px}
+  .page-head{padding:18px 0 12px}
+  .page-head h1{font-size:19px}
+}
 
 /* ---------- 卡片 ---------- */
-.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:20px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:22px;margin-bottom:16px}
 .card-h{display:flex;align-items:baseline;gap:9px;margin-bottom:4px}
 .card-h h2{margin:0;font-size:15.5px;font-weight:600}
 .card-h .badge{font-size:11px;color:var(--brand);background:var(--brand-l);border-radius:20px;padding:1px 8px}
+.card>:first-child{margin-top:0}
+.flabel{display:block;font-size:12.5px;color:var(--ink2);margin:12px 0 5px;font-weight:500}
+.flabel:first-of-type{margin-top:0}
 .hint{margin:0 0 14px;font-size:12.5px;color:var(--ink3)}
 
 /* ---------- 表单 ---------- */
@@ -133,7 +165,8 @@ details .inner{margin-top:11px}
 .spinner{display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;
   border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px;margin-right:6px}
 @keyframes sp{to{transform:rotate(360deg)}}
-footer{text-align:center;font-size:12px;color:var(--ink3);padding:22px 0 40px;line-height:1.9}
+footer{text-align:center;font-size:12px;color:var(--ink3);line-height:1.9;margin-top:40px;
+  padding:16px 0 8px;border-top:1px solid var(--line)}
 footer a{color:var(--brand);text-decoration:none}
 footer a:hover{text-decoration:underline}
 .panel{display:none}.panel.on{display:block}
@@ -173,56 +206,60 @@ footer a:hover{text-decoration:underline}
 </style>
 </head>
 <body>
-<header><div class="wrap">
-  <div class="brand">
-    <div class="mark">抖</div>
-    <div>
-      <h1>视频去水印</h1>
-      <p class="sub">视频创作者一站式工具箱</p>
+<div class="layout">
+  <aside class="side">
+    <a class="side-brand" href="/">
+      <img src="/logo.svg" alt="卿辰工坊">
+      <div><b>卿辰工坊</b><small>创作者一站式工具箱</small></div>
+    </a>
+    <nav class="nav">
+      <div class="grp">视频工具</div>
+      <div class="ni on" data-tool="watermark">
+        <svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M5 21h14"/></svg>
+        去水印
+      </div>
+      <div class="ni" data-tool="batch">
+        <svg viewBox="0 0 24 24"><rect x="3" y="5" width="7" height="7" rx="1.5"/><rect x="14" y="5" width="7" height="7" rx="1.5"/><rect x="3" y="15" width="7" height="6" rx="1.5"/><rect x="14" y="15" width="7" height="6" rx="1.5"/></svg>
+        抖音批量
+      </div>
+      <div class="grp">文案处理</div>
+      <div class="ni" data-tool="asr">
+        <svg viewBox="0 0 24 24"><path d="M4 6h16"/><path d="M4 12h10"/><path d="M4 18h13"/><path d="M18 10.5v7"/><path d="m20.5 12-2.5-1.5L15.5 12"/></svg>
+        文案提取
+      </div>
+      <div class="ni" data-tool="tts">
+        <svg viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M16 8.5a5 5 0 0 1 0 7"/><path d="M19 6a9 9 0 0 1 0 12"/></svg>
+        文案配音
+      </div>
+      <div class="grp">智能创作</div>
+      <div class="ni" data-tool="ai">
+        <svg viewBox="0 0 24 24"><path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M18 16.5 19 19l2.5 1L19 21l-1 2.5L17 21l-2.5-1L17 19z"/></svg>
+        AI 改写
+      </div>
+      <div class="ni" data-tool="write">
+        <svg viewBox="0 0 24 24"><path d="M4 4h11l5 5v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M15 4v5h5"/><path d="M8 13h8M8 17h5"/></svg>
+        AI 写作
+      </div>
+      <div class="ni" data-tool="digest">
+        <svg viewBox="0 0 24 24"><path d="M5 5h14M5 10h14M5 15h9"/><path d="M16 19h5"/><path d="m18.5 16.5 2.5 2.5-2.5 2.5"/></svg>
+        文章摘要
+      </div>
+    </nav>
+    <div class="side-foot">
+      <div id="authArea">
+        <button class="ghost block" id="btnAuthOpen">登录 / 注册</button>
+      </div>
     </div>
-  </div>
-  <div class="auth" id="authArea">
-    <button class="ghost sm" id="btnAuthOpen">登录 / 注册</button>
-  </div>
-</div></header>
+  </aside>
 
-<main class="wrap">
-  <nav class="tools">
-    <div class="tool on" data-tool="watermark">
-      <svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M5 21h14"/></svg>
-      去水印
-    </div>
-    <div class="tool" data-tool="batch">
-      <svg viewBox="0 0 24 24"><rect x="3" y="5" width="7" height="7" rx="1.5"/><rect x="14" y="5" width="7" height="7" rx="1.5"/><rect x="3" y="15" width="7" height="6" rx="1.5"/><rect x="14" y="15" width="7" height="6" rx="1.5"/></svg>
-      抖音批量
-    </div>
-    <div class="tool" data-tool="asr">
-      <svg viewBox="0 0 24 24"><path d="M4 6h16"/><path d="M4 12h10"/><path d="M4 18h13"/><path d="M18 10.5v7"/><path d="m20.5 12-2.5-1.5L15.5 12"/></svg>
-      文案提取
-    </div>
-    <div class="tool" data-tool="tts">
-      <svg viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M16 8.5a5 5 0 0 1 0 7"/><path d="M19 6a9 9 0 0 1 0 12"/></svg>
-      文案配音
-    </div>
-    <div class="tool" data-tool="ai">
-      <svg viewBox="0 0 24 24"><path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M18 16.5 19 19l2.5 1L19 21l-1 2.5L17 21l-2.5-1L17 19z"/></svg>
-      AI 改写
-    </div>
-    <div class="tool" data-tool="write">
-      <svg viewBox="0 0 24 24"><path d="M4 4h11l5 5v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M15 4v5h5"/><path d="M8 13h8M8 17h5"/></svg>
-      AI 写作
-    </div>
-    <div class="tool" data-tool="digest">
-      <svg viewBox="0 0 24 24"><path d="M5 5h14M5 10h14M5 15h9"/><path d="M16 19h5"/><path d="m18.5 16.5 2.5 2.5-2.5 2.5"/></svg>
-      文章摘要
-    </div>
-  </nav>
+  <main class="main"><div class="main-in">
 
   <!-- 去水印 -->
   <section class="panel on" id="p-watermark">
-    <div class="card">
-      <div class="card-h"><h2>粘贴分享链接</h2><span class="badge">免 Cookie</span></div>
+    <div class="page-head"><h1>去水印 <span class="badge">免 Cookie</span></h1>
       <p class="hint">抖音 / 快手 / 小红书 / B站 等 20+ 平台，一个框通用。粘贴后点解析即可拿到无水印原片。</p>
+    </div>
+    <div class="card">
       <div class="field">
         <div class="link-field">
           <input type="text" id="urlQuick" name="dy_link" autocomplete="off" spellcheck="false"
@@ -247,9 +284,10 @@ footer a:hover{text-decoration:underline}
 
   <!-- 抖音批量 -->
   <section class="panel" id="p-batch">
-    <div class="card">
-      <div class="card-h"><h2>主页 / 点赞批量解析</h2><span class="badge">需 Cookie</span></div>
+    <div class="page-head"><h1>抖音批量 <span class="badge">需 Cookie</span></h1>
       <p class="hint">贴用户主页链接，一次抓取他的公开作品；也可以抓自己点赞过的作品。</p>
+    </div>
+    <div class="card">
       <div class="field">
         <div class="link-field">
           <input type="text" id="urlBatch" name="dy_link_batch" autocomplete="off" spellcheck="false"
@@ -289,9 +327,10 @@ footer a:hover{text-decoration:underline}
 
   <!-- 文案提取 -->
   <section class="panel" id="p-asr">
-    <div class="card">
-      <div class="card-h"><h2>提取视频文案</h2><span class="badge">语音转文字</span></div>
+    <div class="page-head"><h1>文案提取 <span class="badge">语音转文字</span></h1>
       <p class="hint">贴分享链接，自动抽音轨转成文字。单次最多 5 分钟；口音重或背景音乐吵时会有同音字，可以点「AI 校对」修一遍。</p>
+    </div>
+    <div class="card">
       <div class="field">
         <div class="link-field">
           <input type="text" id="urlAsr" name="dy_link_asr" autocomplete="off" spellcheck="false"
@@ -318,9 +357,10 @@ footer a:hover{text-decoration:underline}
 
   <!-- 配音 -->
   <section class="panel" id="p-tts">
-    <div class="card">
-      <div class="card-h"><h2>文案配音</h2><span class="badge">在线合成</span></div>
+    <div class="page-head"><h1>文案配音 <span class="badge">在线合成</span></h1>
       <p class="hint">粘贴口播文案，选音色直接生成 MP3，可下载丢进剪映当旁白。</p>
+    </div>
+    <div class="card">
       <textarea id="ttsText" placeholder="把要念的文字放这里，建议一屏以内，单次最多 2000 字"></textarea>
       <div class="voice-row" style="margin-top:9px">
         <select id="ttsVoice"><option value="zh-CN-YunxiNeural">云希 · 男声 年轻自然（推荐）</option></select>
@@ -341,9 +381,10 @@ footer a:hover{text-decoration:underline}
 
   <!-- AI 改写 -->
   <section class="panel" id="p-ai">
-    <div class="card">
-      <div class="card-h"><h2>AI 改写</h2><span class="badge">口播 / 标题 / 卖点</span></div>
+    <div class="page-head"><h1>AI 改写 <span class="badge">口播 / 标题 / 卖点</span></h1>
       <p class="hint">把原片文案丢进来，换个说法、拆成卖点，或直接改成 30 秒口播脚本。</p>
+    </div>
+    <div class="card">
       <div class="modes">
         <div class="mode on" data-mode="rewrite">伪原创改写</div>
         <div class="mode" data-mode="script">30秒口播</div>
@@ -363,9 +404,10 @@ footer a:hover{text-decoration:underline}
 
   <!-- AI 写作 -->
   <section class="panel" id="p-write">
-    <div class="card">
-      <div class="card-h"><h2>AI 写作</h2><span class="badge">长文</span></div>
+    <div class="page-head"><h1>AI 写作 <span class="badge">长文</span></h1>
       <p class="hint">给个标题和关键词，直接出一篇能发的文章；写完可以一键压成摘要。</p>
+    </div>
+    <div class="card">
       <details id="ctxBox" style="margin:0 0 12px;border-top:none;padding-top:0">
         <summary id="ctxSummary">品牌设定（可选，填一次以后每次生成都自动带上）</summary>
         <div class="inner">
@@ -377,14 +419,17 @@ footer a:hover{text-decoration:underline}
           </div>
         </div>
       </details>
-      <select id="writeLen" style="margin-bottom:9px">
-        <option value="500">短篇 · 约 500 字</option>
-        <option value="800" selected>常规 · 约 800 字</option>
+      <label class="flabel" for="writeLen">篇幅</label>
+      <select id="writeLen">
+        <option value="500" selected>短 · 约 500 字</option>
+        <option value="800">常规 · 约 800 字</option>
         <option value="1200">长文 · 约 1200 字</option>
         <option value="2000">长篇 · 约 2000 字</option>
       </select>
-      <input type="text" id="writeTitle" placeholder="文章标题（50 字以内）" maxlength="50">
-      <textarea id="writeKeys" style="min-height:72px;margin-top:9px" placeholder="关键词，逗号或空格隔开，比如：明前龙井, 手工采摘, 回甘"></textarea>
+      <label class="flabel" for="writeTitle">文章标题</label>
+      <input type="text" id="writeTitle" placeholder="50 字以内，也可以只给个方向" maxlength="50">
+      <label class="flabel" for="writeKeys">关键词</label>
+      <textarea id="writeKeys" style="min-height:74px" placeholder="逗号或空格隔开，比如：明前龙井, 手工采摘, 回甘"></textarea>
       <div class="row-inline" style="margin-top:9px">
         <button id="btnWrite">生成文章</button>
         <button class="ghost sm" id="btnWriteToDigest" style="display:none">压成摘要</button>
@@ -397,9 +442,10 @@ footer a:hover{text-decoration:underline}
 
   <!-- 文章摘要 -->
   <section class="panel" id="p-digest">
-    <div class="card">
-      <div class="card-h"><h2>文章摘要</h2><span class="badge">约 200 字</span></div>
+    <div class="page-head"><h1>文章摘要 <span class="badge">约 200 字</span></h1>
       <p class="hint">长文、公众号、会议记录都能压，输出一段通顺摘要，保留数字和结论。</p>
+    </div>
+    <div class="card">
       <textarea id="digestText" style="min-height:180px" placeholder="把原文粘进来"></textarea>
       <div class="row-inline" style="margin-top:9px">
         <button id="btnDigest">生成摘要</button>
@@ -424,13 +470,13 @@ footer a:hover{text-decoration:underline}
       <div class="grid" id="grid"></div>
     </div>
   </section>
-</main>
-
-<footer>
-  作品版权归原作者所有，本工具仅提取公开直链，请勿用于侵权用途<br>
-  直链有时效，拿到后建议尽快下载保存<br>
-  <span style="display:inline-block;margin-top:8px">By <a href="https://foxnan.com" target="_blank" rel="noopener">安卿辰博客</a></span>
-</footer>
+  <footer>
+    作品版权归原作者所有，本工具仅提取公开直链，请勿用于侵权用途。
+    直链有时效，拿到后建议尽快下载保存。<br>
+    <span style="display:inline-block;margin-top:8px">卿辰工坊 · foxnan · <a href="https://foxnan.com" target="_blank" rel="noopener">安卿辰博客</a></span>
+  </footer>
+  </div></main>
+</div>
 
 <div class="mask" id="authMask">
   <div class="modal">
@@ -484,11 +530,11 @@ let aiMode = 'rewrite';
 
 /* ---------- 工具切换 ---------- */
 function switchTool(name) {
-  document.querySelectorAll('.tool').forEach(x => x.classList.toggle('on', x.dataset.tool === name));
+  document.querySelectorAll('.ni').forEach(x => x.classList.toggle('on', x.dataset.tool === name));
   document.querySelectorAll('.panel').forEach(x => x.classList.toggle('on', x.id === 'p-' + name));
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
-document.querySelectorAll('.tool').forEach(t => {
+document.querySelectorAll('.ni').forEach(t => {
   t.onclick = () => switchTool(t.dataset.tool);
 });
 
@@ -1047,15 +1093,16 @@ function renderAuth() {
   const area = $('authArea');
   if (ME) {
     const shown = ME.nickname || (ME.email || '').split('@')[0];
-    area.innerHTML = '<span class="user-chip" id="btnChip" title="' + esc(ME.email) + '">'
-      + '<em>' + esc(shown) + '</em><b>' + ME.balance + ' 次</b></span>'
+    area.innerHTML = '<div class="side-user" id="btnChip" title="' + esc(ME.email) + '">'
+      + '<b>' + esc(shown) + '</b><span>' + ME.balance + ' 次</span></div>'
+      + '<div class="side-mini">'
       + '<button class="ghost sm" id="btnRecharge">充值</button>'
-      + '<button class="ghost sm" id="btnLogout">退出</button>';
+      + '<button class="ghost sm" id="btnLogout">退出</button></div>';
     $('btnChip').onclick = () => openAuth('profile');
     $('btnRecharge').onclick = () => openAuth('recharge');
     $('btnLogout').onclick = doLogout;
   } else {
-    area.innerHTML = '<button class="ghost sm" id="btnAuthOpen">登录 / 注册</button>';
+    area.innerHTML = '<button class="ghost block" id="btnAuthOpen">登录 / 注册</button>';
     $('btnAuthOpen').onclick = () => openAuth('login');
   }
   $('tabRecharge').style.display = ME ? '' : 'none';
