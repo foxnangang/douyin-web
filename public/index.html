@@ -22,6 +22,7 @@ body{background:var(--bg);color:var(--ink);font-size:15px;line-height:1.65;-webk
 .wrap{max-width:900px;margin:0 auto;padding:0 18px}
 
 /* ---------- 布局：左侧栏 + 内容区 ---------- */
+.mbar,.ovl{display:none}
 .layout{display:flex;min-height:100vh;align-items:stretch}
 .side{width:216px;flex-shrink:0;background:#fff;border-right:1px solid var(--line);
   display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
@@ -61,20 +62,38 @@ body{background:var(--bg);color:var(--ink);font-size:15px;line-height:1.65;-webk
 
 /* ---------- 移动端：侧栏折成顶部横排 ---------- */
 @media(max-width:760px){
+  /* 顶栏 */
+  .mbar{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#fff;
+    border-bottom:1px solid var(--line);position:sticky;top:0;z-index:40}
+  .mbtn{background:transparent;color:var(--ink2);box-shadow:none;padding:8px;border-radius:8px;line-height:0}
+  .mbtn:hover{background:#FAFBFA;box-shadow:none}
+  .mbtn svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round}
+  .mbrand{display:flex;align-items:center;gap:8px;flex:1;min-width:0}
+  .mbrand img{width:26px;height:26px;border-radius:7px}
+  .mbrand b{font-size:15px;font-weight:600;white-space:nowrap}
+
+  /* 侧栏变抽屉 */
   .layout{flex-direction:column}
-  .side{width:auto;height:auto;position:static;flex-direction:column;border-right:none;
-    border-bottom:1px solid var(--line)}
-  .side-brand{padding:14px 16px 10px}
-  .nav{display:flex;gap:4px;overflow-x:auto;padding:0 10px 10px;flex:none}
-  .grp{display:none}
-  .ni{white-space:nowrap;padding:7px 11px;border-left:none;border-bottom:2px solid transparent;border-radius:8px 8px 0 0}
-  .ni.on{border-left:none;border-bottom-color:var(--brand)}
-  .ni svg{display:none}
-  .ni-d{display:none}
-  .side-foot{border-top:none;padding:0 14px 12px}
+  .side{position:fixed;top:0;left:0;bottom:0;width:248px;height:100vh;z-index:70;
+    transform:translateX(-100%);transition:transform .22s ease;border-right:1px solid var(--line);
+    box-shadow:0 12px 40px rgba(22,32,29,.16)}
+  .side.open{transform:translateX(0)}
+  .side-brand{padding:16px}
+  .nav{flex-direction:column;overflow-y:auto;padding:2px 10px;flex:1}
+  .grp{display:block}
+  .ni{white-space:normal;padding:8px 10px;border-radius:8px;border-left:2px solid transparent;border-bottom:none}
+  .ni.on{border-left-color:var(--brand)}
+  .ni svg{display:block}
+  .ni-d{display:block}
+  .side-foot{display:block;border-top:1px solid var(--line);padding:12px 14px 16px}
+
+  .ovl{display:none;position:fixed;inset:0;background:rgba(20,25,23,.42);z-index:60}
+  .ovl.on{display:block}
+
   .main{padding:0 16px 34px}
   .page-head{padding:18px 0 12px}
   .page-head h1{font-size:19px}
+}
 }
 
 /* ---------- 卡片 ---------- */
@@ -171,7 +190,12 @@ button.sm{padding:7px 13px;font-size:12.5px;border-radius:8px}
 
 /* ---------- 其它 ---------- */
 details{margin-top:14px;border-top:1px dashed var(--line);padding-top:13px}
-summary{cursor:pointer;font-size:12.5px;color:var(--ink3);outline:none}
+summary{cursor:pointer;font-size:12.5px;color:var(--ink3);outline:none;
+  list-style:none;display:flex;align-items:center;gap:6px}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"";width:5px;height:5px;border-right:1.5px solid currentColor;
+  border-bottom:1.5px solid currentColor;transform:rotate(-45deg);transition:transform .16s;flex-shrink:0}
+details[open]>summary::before{transform:rotate(45deg)}
 summary:hover{color:var(--brand)}
 details .inner{margin-top:11px}
 .row-inline{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
@@ -219,6 +243,17 @@ footer a:hover{text-decoration:underline}
 </style>
 </head>
 <body>
+<div class="mbar">
+  <button class="mbtn" id="btnMenu" aria-label="打开菜单">
+    <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+  </button>
+  <div class="mbrand">
+    <img src="/logo.svg" alt="卿辰工坊">
+    <b>卿辰工坊</b>
+  </div>
+</div>
+<div class="ovl" id="ovl"></div>
+
 <div class="layout">
   <aside class="side">
     <a class="side-brand" href="/">
@@ -575,8 +610,28 @@ function switchTool(name) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 document.querySelectorAll('.ni').forEach(t => {
-  t.onclick = () => switchTool(t.dataset.tool);
+  t.onclick = () => {
+    switchTool(t.dataset.tool);
+    closeDrawer();
+  };
 });
+
+/* 手机端抽屉：汉堡打开、点遮罩或选完工具自动收起 */
+function openDrawer() {
+  document.querySelector('.side').classList.add('open');
+  $('ovl').classList.add('on');
+  document.body.style.overflow = 'hidden';
+}
+function closeDrawer() {
+  document.querySelector('.side').classList.remove('open');
+  $('ovl').classList.remove('on');
+  document.body.style.overflow = '';
+}
+$('btnMenu').onclick = openDrawer;
+$('ovl').onclick = closeDrawer;
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDrawer(); });
+// 从横屏切回竖屏时别留个开着的抽屉
+window.addEventListener('resize', () => { if (window.innerWidth > 760) closeDrawer(); });
 
 /* ---------- 通用 ---------- */
 function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
