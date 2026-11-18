@@ -31,9 +31,14 @@ body{background:var(--bg);color:var(--ink);font-size:15px;line-height:1.65;-webk
 .side-brand small{display:block;font-size:10.5px;color:var(--ink3);letter-spacing:.3px;margin-top:2px}
 .nav{padding:2px 10px;overflow-y:auto;flex:1}
 .grp{font-size:11px;color:var(--ink3);letter-spacing:.5px;padding:14px 8px 6px}
-.ni{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;font-size:13.5px;
-  color:var(--ink2);cursor:pointer;transition:.14s;user-select:none;position:relative;border-left:2px solid transparent}
-.ni svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.ni{display:flex;align-items:flex-start;gap:9px;padding:7px 10px;border-radius:8px;
+  color:var(--ink2);cursor:pointer;transition:.14s;user-select:none;position:relative;
+  border-left:2px solid transparent}
+.ni-txt{display:flex;flex-direction:column;min-width:0;line-height:1.25}
+.ni-t{font-size:13.5px}
+.ni-d{font-size:11px;color:var(--ink3);margin-top:2px;letter-spacing:.1px}
+.ni.on .ni-d{color:var(--brand)}
+.ni svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;margin-top:2px}
 .ni:hover{background:#FAFBFA;color:var(--ink)}
 .ni.on{background:var(--brand-l);color:var(--brand-d);font-weight:600;border-left-color:var(--brand)}
 .side-foot{padding:12px 14px 16px;border-top:1px solid var(--line)}
@@ -65,6 +70,7 @@ body{background:var(--bg);color:var(--ink);font-size:15px;line-height:1.65;-webk
   .ni{white-space:nowrap;padding:7px 11px;border-left:none;border-bottom:2px solid transparent;border-radius:8px 8px 0 0}
   .ni.on{border-left:none;border-bottom-color:var(--brand)}
   .ni svg{display:none}
+  .ni-d{display:none}
   .side-foot{border-top:none;padding:0 14px 12px}
   .main{padding:0 16px 34px}
   .page-head{padding:18px 0 12px}
@@ -154,6 +160,8 @@ button.sm{padding:7px 13px;font-size:12.5px;border-radius:8px}
 .out{display:none;margin-top:13px;padding:14px;background:#fbfcfa;border:1px solid var(--line);border-radius:10px;white-space:pre-wrap;font-size:13.5px;line-height:1.8;cursor:pointer}
 .out.show{display:block}
 .out.long{max-height:540px;overflow:auto}
+.mode-desc{font-size:12px;color:var(--ink3);margin:-2px 0 12px;line-height:1.65;
+  background:#fbfcfa;border-left:2px solid var(--brand-line);padding:7px 11px;border-radius:0 6px 6px 0}
 .pub-blk{background:#fbfcfa;border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:9px}
 .pub-h{display:flex;align-items:center;justify-content:space-between;font-size:12.5px;color:var(--ink3);margin-bottom:7px}
 .pub-body{font-size:13.5px;line-height:1.9;white-space:pre-wrap}
@@ -221,33 +229,33 @@ footer a:hover{text-decoration:underline}
       <div class="grp">视频工具</div>
       <div class="ni on" data-tool="watermark">
         <svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M5 21h14"/></svg>
-        去水印
+        <div class="ni-txt"><span class="ni-t">去水印</span><span class="ni-d">粘链接，拿无水印原片</span></div>
       </div>
       <div class="ni" data-tool="batch">
         <svg viewBox="0 0 24 24"><rect x="3" y="5" width="7" height="7" rx="1.5"/><rect x="14" y="5" width="7" height="7" rx="1.5"/><rect x="3" y="15" width="7" height="6" rx="1.5"/><rect x="14" y="15" width="7" height="6" rx="1.5"/></svg>
-        抖音批量
+        <div class="ni-txt"><span class="ni-t">抖音批量</span><span class="ni-d">主页 / 点赞 / 收藏 一次抓完</span></div>
       </div>
       <div class="grp">文案处理</div>
       <div class="ni" data-tool="asr">
         <svg viewBox="0 0 24 24"><path d="M4 6h16"/><path d="M4 12h10"/><path d="M4 18h13"/><path d="M18 10.5v7"/><path d="m20.5 12-2.5-1.5L15.5 12"/></svg>
-        文案提取
+        <div class="ni-txt"><span class="ni-t">文案提取</span><span class="ni-d">视频语音转成文字，可导字幕</span></div>
       </div>
       <div class="ni" data-tool="ai">
         <svg viewBox="0 0 24 24"><path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M18 16.5 19 19l2.5 1L19 21l-1 2.5L17 21l-2.5-1L17 19z"/></svg>
-        AI 改写
+        <div class="ni-txt"><span class="ni-t">AI 改写</span><span class="ni-d">换说法、拆卖点、改口播</span></div>
       </div>
       <div class="ni" data-tool="tts">
         <svg viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M16 8.5a5 5 0 0 1 0 7"/><path d="M19 6a9 9 0 0 1 0 12"/></svg>
-        文案配音
+        <div class="ni-txt"><span class="ni-t">文案配音</span><span class="ni-d">文字转人声，能试听下载</span></div>
       </div>
       <div class="grp">智能创作</div>
       <div class="ni" data-tool="write">
         <svg viewBox="0 0 24 24"><path d="M4 4h11l5 5v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M15 4v5h5"/><path d="M8 13h8M8 17h5"/></svg>
-        AI 写作
+        <div class="ni-txt"><span class="ni-t">AI 写作</span><span class="ni-d">给标题和关键词，出成文</span></div>
       </div>
       <div class="ni" data-tool="digest">
         <svg viewBox="0 0 24 24"><path d="M5 5h14M5 10h14M5 15h9"/><path d="M16 19h5"/><path d="m18.5 16.5 2.5 2.5-2.5 2.5"/></svg>
-        文章摘要
+        <div class="ni-txt"><span class="ni-t">文章摘要</span><span class="ni-d">长文压成 200 字摘要</span></div>
       </div>
     </nav>
     <div class="side-foot">
@@ -404,6 +412,7 @@ footer a:hover{text-decoration:underline}
         <div class="mode" data-mode="selling">提炼卖点</div>
         <div class="mode" data-mode="summary">要点摘要</div>
       </div>
+      <p class="mode-desc" id="modeDesc"></p>
       <textarea id="aiText" placeholder="粘贴要改写的原文（解析出来的视频文案也能直接复制过来）"></textarea>
       <div class="row-inline" style="margin-top:9px">
         <button id="btnAi">开始改写</button>
@@ -984,13 +993,33 @@ $('btnAsrToAi').onclick = () => {
 };
 
 /* ---------- AI 改写 ---------- */
+const MODE_DESC = {
+  rewrite: '保留原来的信息和观点，换结构、换说法，读起来像另一个人写的，适合过原创检测。',
+  script: '改成一条 30 秒口播脚本：前 3 秒抓人，中间讲清一个点，结尾引导互动说「评论区」。',
+  xhs: '小红书笔记体：短标题 + 分点正文 + emoji + 6~8 个话题标签，直接能发。',
+  gzh: '扩写成公众号文章：标题 + 导语 + 2~4 个「一、二、三」小标题 + 收尾。',
+  weibo: '压成 140 字以内的微博，开头有钩子，结尾带 2~3 个话题。',
+  publish: '一次给齐发布三件套：3 个不同角度的标题 + 60~100 字简介 + 6~8 个话题，分块复制。',
+  title: '出 10 个抖音标题，每个 20 字内，口语化、带钩子。',
+  title_xhs: '出 10 个小红书标题，带情绪和 emoji，适合做封面字。',
+  selling: '提炼 5 条卖点，每条一句话，具体到能被感知，不说空话。',
+  summary: '3~5 条要点 + 一句结论，快速看懂长文讲了什么。',
+};
+
+function refreshModeDesc() {
+  const el = $('modeDesc');
+  if (el) el.textContent = MODE_DESC[aiMode] || '';
+}
+
 document.querySelectorAll('.mode').forEach(m => {
   m.onclick = () => {
     document.querySelectorAll('.mode').forEach(x => x.classList.remove('on'));
     m.classList.add('on');
     aiMode = m.dataset.mode;
+    refreshModeDesc();
   };
 });
+refreshModeDesc();
 
 $('btnAi').onclick = async e => {
   const btn = e.currentTarget, text = $('aiText').value.trim();
