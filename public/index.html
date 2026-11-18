@@ -37,8 +37,6 @@ body{background:var(--bg);color:var(--ink);font-size:15px;line-height:1.65;-webk
   border-left:2px solid transparent}
 .ni-txt{display:flex;flex-direction:column;min-width:0;line-height:1.25}
 .ni-t{font-size:13.5px}
-.ni-d{font-size:11px;color:var(--ink3);margin-top:2px;letter-spacing:.1px}
-.ni.on .ni-d{color:var(--brand)}
 .ni svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;margin-top:2px}
 .ni:hover{background:#FAFBFA;color:var(--ink)}
 .ni.on{background:var(--brand-l);color:var(--brand-d);font-weight:600;border-left-color:var(--brand)}
@@ -84,7 +82,6 @@ body{background:var(--bg);color:var(--ink);font-size:15px;line-height:1.65;-webk
   .ni{white-space:normal;padding:8px 10px;border-radius:8px;border-left:2px solid transparent;border-bottom:none}
   .ni.on{border-left-color:var(--brand)}
   .ni svg{display:block}
-  .ni-d{display:block}
   .side-foot{display:block;border-top:1px solid var(--line);padding:12px 14px 16px}
 
   .ovl{display:none;position:fixed;inset:0;background:rgba(20,25,23,.42);z-index:60}
@@ -268,33 +265,33 @@ footer a:hover{text-decoration:underline}
       <div class="grp">视频工具</div>
       <div class="ni on" data-tool="watermark">
         <svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M5 21h14"/></svg>
-        <div class="ni-txt"><span class="ni-t">去水印</span><span class="ni-d">粘链接，拿无水印原片</span></div>
+        <div class="ni-txt"><span class="ni-t">去水印</span></div>
       </div>
       <div class="ni" data-tool="batch">
         <svg viewBox="0 0 24 24"><rect x="3" y="5" width="7" height="7" rx="1.5"/><rect x="14" y="5" width="7" height="7" rx="1.5"/><rect x="3" y="15" width="7" height="6" rx="1.5"/><rect x="14" y="15" width="7" height="6" rx="1.5"/></svg>
-        <div class="ni-txt"><span class="ni-t">抖音批量</span><span class="ni-d">主页 / 点赞 / 收藏 一次抓完</span></div>
+        <div class="ni-txt"><span class="ni-t">抖音批量</span></div>
       </div>
       <div class="grp">文案处理</div>
       <div class="ni" data-tool="asr">
         <svg viewBox="0 0 24 24"><path d="M4 6h16"/><path d="M4 12h10"/><path d="M4 18h13"/><path d="M18 10.5v7"/><path d="m20.5 12-2.5-1.5L15.5 12"/></svg>
-        <div class="ni-txt"><span class="ni-t">文案提取</span><span class="ni-d">视频语音转成文字，可导字幕</span></div>
+        <div class="ni-txt"><span class="ni-t">文案提取</span></div>
       </div>
       <div class="ni" data-tool="ai">
         <svg viewBox="0 0 24 24"><path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M18 16.5 19 19l2.5 1L19 21l-1 2.5L17 21l-2.5-1L17 19z"/></svg>
-        <div class="ni-txt"><span class="ni-t">AI 改写</span><span class="ni-d">换说法、拆卖点、改口播</span></div>
+        <div class="ni-txt"><span class="ni-t">AI 改写</span></div>
       </div>
       <div class="ni" data-tool="tts">
         <svg viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M16 8.5a5 5 0 0 1 0 7"/><path d="M19 6a9 9 0 0 1 0 12"/></svg>
-        <div class="ni-txt"><span class="ni-t">文案配音</span><span class="ni-d">文字转人声，能试听下载</span></div>
+        <div class="ni-txt"><span class="ni-t">文案配音</span></div>
       </div>
       <div class="grp">智能创作</div>
       <div class="ni" data-tool="write">
         <svg viewBox="0 0 24 24"><path d="M4 4h11l5 5v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M15 4v5h5"/><path d="M8 13h8M8 17h5"/></svg>
-        <div class="ni-txt"><span class="ni-t">AI 写作</span><span class="ni-d">给标题和关键词，出成文</span></div>
+        <div class="ni-txt"><span class="ni-t">AI 写作</span></div>
       </div>
       <div class="ni" data-tool="digest">
         <svg viewBox="0 0 24 24"><path d="M5 5h14M5 10h14M5 15h9"/><path d="M16 19h5"/><path d="m18.5 16.5 2.5 2.5-2.5 2.5"/></svg>
-        <div class="ni-txt"><span class="ni-t">文章摘要</span><span class="ni-d">长文压成 200 字摘要</span></div>
+        <div class="ni-txt"><span class="ni-t">文章摘要</span></div>
       </div>
     </nav>
     <div class="side-foot">
