@@ -612,10 +612,19 @@ footer a:hover{text-decoration:underline}
 const $ = id => document.getElementById(id);
 let allLinks = [];
 let lastSegs = [];
+// 结果区是「去水印」和「抖音批量」共用的，记下是谁跑出来的，切走时要藏起来
+let resultOwner = null;
+let curPanel = 'watermark';
 let aiMode = 'rewrite';
 
 /* ---------- 工具切换 ---------- */
 function switchTool(name) {
+  curPanel = name;
+  // 结果区只属于跑出它的那个工具，切到别的工具要收起来
+  const resBox = document.getElementById('results');
+  if (resBox && resultOwner) {
+    resBox.style.display = (resultOwner === name) ? 'block' : 'none';
+  }
   document.querySelectorAll('.ni').forEach(x => x.classList.toggle('on', x.dataset.tool === name));
   document.querySelectorAll('.panel').forEach(x => x.classList.toggle('on', x.id === 'p-' + name));
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -719,7 +728,7 @@ $('btnQuick').onclick = async e => {
   try {
     const r = await fetch('/api/quick-parse?url=' + encodeURIComponent(url)).then(x => x.json());
     if (!r.ok) { showMsg('quickMsg', r.error || '解析失败', 'err'); return; }
-    renderResults(r.data);
+    renderResults(r.data, 'watermark');
     const pf = r.data.platformLabel ? r.data.platformLabel + ' · ' : '';
     showMsg('quickMsg', pf + '解析成功，共 ' + r.data.count + ' 个文件', 'ok');
     refreshMe();
@@ -739,7 +748,7 @@ $('btnBatch').onclick = async e => {
       body: JSON.stringify({ url, mode, cookie: $('cookie').value.trim(), limit: +$('limit').value })
     }).then(x => x.json());
     if (!r.ok) { showMsg('batchMsg', r.error || '解析失败', 'err'); return; }
-    renderResults(r.data);
+    renderResults(r.data, 'batch');
     showMsg('batchMsg', '解析完成，共 ' + r.data.count + ' 个文件', 'ok');
     refreshMe();
   } catch (err) {
@@ -748,7 +757,8 @@ $('btnBatch').onclick = async e => {
 };
 
 /* ---------- 结果渲染 ---------- */
-function renderResults(data) {
+function renderResults(data, owner) {
+  resultOwner = owner || 'watermark';
   const works = data.works || [];
   allLinks = works.map(w => w.url).filter(Boolean);
   const p = data.profile || {};
@@ -781,7 +791,7 @@ function renderResults(data) {
     document.querySelector('.res-acts').appendChild(a);
   }
 
-  $('results').style.display = works.length ? 'block' : 'none';
+  $('results').style.display = works.length && curPanel === resultOwner ? 'block' : 'none';
   const grid = $('grid');
   grid.innerHTML = works.map(w => {
     const kindLabel = {video:'视频', image:'图片', live:'实况'}[w.kind] || w.kind;
