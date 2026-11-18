@@ -179,11 +179,9 @@ button.sm{padding:7px 13px;font-size:12.5px;border-radius:8px}
 .out{display:none;margin-top:13px;padding:14px;background:#fbfcfa;border:1px solid var(--line);border-radius:10px;white-space:pre-wrap;font-size:13.5px;line-height:1.8;cursor:pointer}
 .out.show{display:block}
 .out.long{max-height:540px;overflow:auto}
-.act-list{display:flex;flex-direction:column;gap:9px;margin-top:11px;
-  border-top:1px dashed var(--line);padding-top:12px}
-.act-row{display:flex;align-items:center;gap:11px}
-.act-row button{flex:0 0 auto;min-width:96px}
-.act-row span{font-size:12px;color:var(--ink3);line-height:1.6}
+.act-tips{margin-top:12px;padding-top:11px;border-top:1px dashed var(--line)}
+.act-tips div{font-size:12px;color:var(--ink3);line-height:1.85}
+.act-tips b{color:var(--ink2);font-weight:600;margin-right:7px}
 .mode-desc{font-size:12px;color:var(--ink3);margin:-2px 0 12px;line-height:1.65;
   background:#fbfcfa;border-left:2px solid var(--brand-line);padding:7px 11px;border-radius:0 6px 6px 0}
 .pub-blk{background:#fbfcfa;border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:9px}
@@ -401,26 +399,18 @@ footer a:hover{text-decoration:underline}
         <div class="asr-meta" id="asrMeta"></div>
         <textarea id="asrText" style="min-height:170px;background:#fff" readonly></textarea>
         <div class="row-inline" style="margin-top:9px">
+          <button class="soft sm" id="btnProof">AI 校对</button>
           <button class="ghost sm" id="btnAsrCopy">复制文案</button>
+          <button class="ghost sm" id="btnAsrToAi">拿去改写</button>
+          <button class="ghost sm" id="btnSrt" style="display:none">下载 SRT</button>
+          <button class="ghost sm" id="btnAss" style="display:none">下载 ASS</button>
         </div>
 
-        <div class="act-list">
-          <div class="act-row">
-            <button class="soft sm" id="btnProof">AI 校对</button>
-            <span>修掉语音转写的同音字和错别字，不改原意、不润色</span>
-          </div>
-          <div class="act-row">
-            <button class="ghost sm" id="btnAsrToAi">拿去改写</button>
-            <span>把这段文案直接送进「AI 改写」，接着换说法、改口播</span>
-          </div>
-          <div class="act-row" id="rowSrt" style="display:none">
-            <button class="ghost sm" id="btnSrt">下载 SRT</button>
-            <span>通用字幕格式，剪映、PR、达芬奇都能直接导入</span>
-          </div>
-          <div class="act-row" id="rowAss" style="display:none">
-            <button class="ghost sm" id="btnAss">下载 ASS</button>
-            <span>带样式的字幕：竖屏 1080×1920，字号、描边、位置都配好了</span>
-          </div>
+        <div class="act-tips">
+          <div><b>AI 校对</b>修掉语音转写里的同音字和错别字，不改原意、不润色</div>
+          <div><b>拿去改写</b>直接送进「AI 改写」，接着换说法或改成口播</div>
+          <div id="tipSrt" style="display:none"><b>下载 SRT</b>通用字幕格式，剪映、PR、达芬奇都能直接导入</div>
+          <div id="tipAss" style="display:none"><b>下载 ASS</b>带样式的字幕，竖屏 1080×1920，字号描边位置都配好了</div>
         </div>
       </div>
     </div>
@@ -942,8 +932,10 @@ $('btnAsr').onclick = async e => {
     const text = d.text || '';
     lastSegs = d.segments || [];
     $('asrText').value = text || '（没识别到语音，可能是纯音乐或无人声）';
-    $('rowSrt').style.display = lastSegs.length ? '' : 'none';
-    $('rowAss').style.display = lastSegs.length ? '' : 'none';
+    $('btnSrt').style.display = lastSegs.length ? '' : 'none';
+    $('btnAss').style.display = lastSegs.length ? '' : 'none';
+    $('tipSrt').style.display = lastSegs.length ? '' : 'none';
+    $('tipAss').style.display = lastSegs.length ? '' : 'none';
     $('asrMeta').textContent = [
       (p.data && p.data.platformLabel) || '',
       '原片 ' + (d.duration || 0) + ' 秒',
