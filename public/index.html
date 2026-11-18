@@ -154,6 +154,11 @@ button.sm{padding:7px 13px;font-size:12.5px;border-radius:8px}
 .out{display:none;margin-top:13px;padding:14px;background:#fbfcfa;border:1px solid var(--line);border-radius:10px;white-space:pre-wrap;font-size:13.5px;line-height:1.8;cursor:pointer}
 .out.show{display:block}
 .out.long{max-height:540px;overflow:auto}
+.pub-blk{background:#fbfcfa;border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:9px}
+.pub-h{display:flex;align-items:center;justify-content:space-between;font-size:12.5px;color:var(--ink3);margin-bottom:7px}
+.pub-body{font-size:13.5px;line-height:1.9;white-space:pre-wrap}
+.pub-body .t{display:block;margin-bottom:3px}
+.pub-body .tag{color:var(--brand);font-weight:500}
 .asr-meta{font-size:12px;color:var(--ink3);margin-bottom:8px}
 
 /* ---------- 其它 ---------- */
@@ -393,6 +398,7 @@ footer a:hover{text-decoration:underline}
         <div class="mode" data-mode="xhs">小红书笔记</div>
         <div class="mode" data-mode="gzh">公众号文章</div>
         <div class="mode" data-mode="weibo">微博短文</div>
+        <div class="mode" data-mode="publish">发布物料</div>
         <div class="mode" data-mode="title">爆款标题</div>
         <div class="mode" data-mode="title_xhs">小红书标题</div>
         <div class="mode" data-mode="selling">提炼卖点</div>
@@ -404,6 +410,24 @@ footer a:hover{text-decoration:underline}
         <span style="font-size:12px;color:var(--ink3)" id="aiState"></span>
       </div>
       <div class="out" id="aiOut"></div>
+
+      <!-- 发布物料：标题 / 简介 / 话题 分块可复制 -->
+      <div id="pubOut" style="display:none;margin-top:13px">
+        <div class="pub-blk">
+          <div class="pub-h">标题 <button class="ghost sm" data-copy="pubTitles">复制</button></div>
+          <div class="pub-body" id="pubTitles"></div>
+        </div>
+        <div class="pub-blk">
+          <div class="pub-h">简介 <button class="ghost sm" data-copy="pubDesc">复制</button></div>
+          <div class="pub-body" id="pubDesc"></div>
+        </div>
+        <div class="pub-blk">
+          <div class="pub-h">话题 <button class="ghost sm" data-copy="pubTags">复制</button></div>
+          <div class="pub-body" id="pubTags"></div>
+        </div>
+        <button class="ghost sm" id="btnPubAll" style="margin-top:4px">复制全部（标题+简介+话题）</button>
+      </div>
+
       <div class="msg" id="aiMsg"></div>
     </div>
   </section>
@@ -975,20 +999,47 @@ $('btnAi').onclick = async e => {
   showMsg('aiMsg', '', '');
   const out = $('aiOut');
   out.classList.remove('show');
+  $('pubOut').style.display = 'none';
   try {
     const r = await fetch('/api/ai', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ mode: aiMode, context: ctxNow(), text })
     }).then(x => x.json());
     if (!r.ok) { showMsg('aiMsg', r.error || '改写失败', 'err'); return; }
-    out.textContent = r.data.result;
-    out.classList.add('show');
-    out.onclick = () => {
-      navigator.clipboard.writeText(r.data.result);
-      $('aiState').textContent = '已复制到剪贴板';
-      setTimeout(() => $('aiState').textContent = '', 1600);
-    };
-    $('aiState').textContent = '点结果可复制';
+
+    if (aiMode === 'publish') {
+      // 发布物料：按「标题N / 简介 / 话题」拆成三块，各自可复制
+      const raw = r.data.result || '';
+      const titles = [], m2 = { desc: '', tags: '' };
+      raw.split('\n').forEach(line => {
+        const l = line.trim();
+        let m;
+        if ((m = l.match(/^标题\s*\d+\s*[：:]\s*(.+)$/))) titles.push(m[1].trim());
+        else if ((m = l.match(/^简介\s*[：:]\s*(.+)$/))) m2.desc = m[1].trim();
+        else if ((m = l.match(/^话题\s*[：:]\s*(.+)$/))) m2.tags = m[1].trim();
+      });
+      if (titles.length || m2.desc) {
+        $('pubTitles').innerHTML = titles.map((t, i) => '<span class="t">' + (i + 1) + '. ' + esc(t) + '</span>').join('');
+        $('pubDesc').textContent = m2.desc;
+        $('pubTags').innerHTML = '<span class="tag">' + esc(m2.tags) + '</span>';
+        $('pubOut').style.display = 'block';
+        $('aiState').textContent = '三个模块各自可复制';
+      } else {
+        // 模型没按格式给，就退回纯文本，别让用户看不到结果
+        out.textContent = raw;
+        out.classList.add('show');
+        out.onclick = () => navigator.clipboard.writeText(raw);
+      }
+    } else {
+      out.textContent = r.data.result;
+      out.classList.add('show');
+      out.onclick = () => {
+        navigator.clipboard.writeText(r.data.result);
+        $('aiState').textContent = '已复制到剪贴板';
+        setTimeout(() => $('aiState').textContent = '', 1600);
+      };
+      $('aiState').textContent = '点结果可复制';
+    }
     refreshMe();
   } catch (err) {
     showMsg('aiMsg', '请求失败：' + err.message, 'err');
@@ -1016,6 +1067,28 @@ $('btnCtxSave').onclick = async () => {
   } catch (e) {
     $('ctxState').textContent = '请求失败：' + e.message;
   } finally { setLoading(btn, false, '保存设定'); }
+};
+
+/* ---------- 发布物料：分块复制 ---------- */
+document.querySelectorAll('button[data-copy]').forEach(b => {
+  b.onclick = () => {
+    const el = $(b.dataset.copy);
+    const t = (el.innerText || '').trim();
+    if (!t) return;
+    navigator.clipboard.writeText(t);
+    const old = b.textContent;
+    b.textContent = '已复制';
+    setTimeout(() => b.textContent = old, 1400);
+  };
+});
+
+$('btnPubAll').onclick = () => {
+  const t = ['标题：', $('pubTitles').innerText.trim(), '', '简介：',
+    $('pubDesc').innerText.trim(), '', '话题：', $('pubTags').innerText.trim()].join('\n');
+  navigator.clipboard.writeText(t);
+  const b = $('btnPubAll'), old = b.textContent;
+  b.textContent = '已复制全部';
+  setTimeout(() => b.textContent = old, 1600);
 };
 
 /* ---------- AI 写作 ---------- */
