@@ -251,6 +251,7 @@ footer a:hover{text-decoration:underline}
     <img src="/logo.svg" alt="卿辰工坊">
     <b>卿辰工坊</b>
   </div>
+  <button class="ghost sm" id="btnMBar">登录</button>
 </div>
 <div class="ovl" id="ovl"></div>
 
@@ -1351,7 +1352,12 @@ function renderAuth() {
   }
   $('tabRecharge').style.display = ME ? '' : 'none';
   $('tabProfile').style.display = ME ? '' : 'none';
+  const mb = document.getElementById('btnMBar');
+  if (mb) mb.textContent = ME ? (ME.balance + ' 次') : '登录';
 }
+
+const _mbar = document.getElementById('btnMBar');
+if (_mbar) _mbar.onclick = () => openAuth(ME ? 'profile' : 'login');
 
 async function refreshMe() {
   try {
